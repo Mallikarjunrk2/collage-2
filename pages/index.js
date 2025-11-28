@@ -2,55 +2,31 @@ import { useState, useEffect, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 
 export default function Home() {
-  // Chat messages for active chat
-  const [messages, setMessages] = useState([]);
-
-  // All chat histories
-  const [history, setHistory] = useState([]);
-
-  // Selected chat index
-  const [activeChatIndex, setActiveChatIndex] = useState(null);
-
   const [q, setQ] = useState("");
+  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const endRef = useRef();
 
-  /* -------------------------------
-     Load history on first load
-  --------------------------------*/
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("cgpt_history_all")) || [];
-    setHistory(saved);
-  }, []);
-
-  /* -------------------------------
-     Auto scroll chat
-  --------------------------------*/
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  /* -------------------------------
-     Save history whenever updated
-  --------------------------------*/
+  // Restore history on load
   useEffect(() => {
-    localStorage.setItem("cgpt_history_all", JSON.stringify(history));
-  }, [history]);
+    const saved = localStorage.getItem("cgpt-hist");
+    if (saved) setMessages(JSON.parse(saved));
+  }, []);
 
-  /* -------------------------------
-     Send message
-  --------------------------------*/
+  // Save on every update
+  useEffect(() => {
+    localStorage.setItem("cgpt-hist", JSON.stringify(messages));
+  }, [messages]);
+
   async function send() {
     if (!q.trim()) return;
 
-    const userMessage = {
-      id: Date.now(),
-      role: "user",
-      text: q.trim(),
-      time: new Date().toLocaleTimeString(),
-    };
-
-    setMessages((m) => [...m, userMessage]);
+    const user = { id: Date.now(), role: "user", text: q.trim() };
+    setMessages((m) => [...m, user]);
     setQ("");
     setLoading(true);
 
@@ -58,150 +34,161 @@ export default function Home() {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: userMessage.text }),
+        body: JSON.stringify({ question: user.text }),
       });
 
       const json = await res.json();
-
-      const botMessage = {
+      const bot = {
         id: Date.now() + 1,
         role: "bot",
-        text: json.answer || json.error || "No answer",
-        source: json.source || "llm",
-        alias: json.alias || null,
-        time: new Date().toLocaleTimeString(),
+        text: json.answer || "No answer.",
+        source: json.source || "",
       };
 
-      const updatedMessages = [...messages, userMessage, botMessage];
-
-      setMessages(updatedMessages);
-
-      // Store this chat in history
-      saveChatToHistory(updatedMessages);
-    } finally {
-      setLoading(false);
+      setMessages((m) => [...m, bot]);
+    } catch (e) {
+      setMessages((m) => [
+        ...m,
+        { id: Date.now() + 2, role: "bot", text: "Error contacting API." },
+      ]);
     }
+
+    setLoading(false);
   }
 
-  /* -------------------------------
-     Save current chat into history
-  --------------------------------*/
-  function saveChatToHistory(chatMessages) {
-    const title =
-      chatMessages[0]?.text?.slice(0, 25) || "New Chat";
+  // Image upload → describe
+  async function handleImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
 
-    const newHistory = [...history];
-    newHistory[activeChatIndex] = {
-      title,
-      messages: chatMessages,
-    };
+    setLoading(true);
 
-    setHistory(newHistory);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    // We send to our endpoint
+    const res = await fetch("/api/describeImage", {
+      method: "POST",
+      body: formData,
+    });
+
+    const json = await res.json();
+
+    setMessages((m) => [
+      ...m,
+      {
+        id: Date.now(),
+        role: "bot",
+        text: json.answer || "Could not describe the image",
+        source: "image-vision",
+      },
+    ]);
+
+    setLoading(false);
   }
 
-  /* -------------------------------
-     New Chat
-  --------------------------------*/
-  function newChat() {
-    const newChatData = { title: "New Chat", messages: [] };
-    const newHistory = [...history, newChatData];
-
-    setHistory(newHistory);
-    setActiveChatIndex(newHistory.length - 1);
-    setMessages([]);
-  }
-
-  /* -------------------------------
-     Select Chat From Sidebar
-  --------------------------------*/
-  function loadChat(index) {
-    setActiveChatIndex(index);
-    setMessages(history[index].messages);
-  }
-
-  /* -------------------------------
-     Clear all chats
-  --------------------------------*/
-  function clearHistory() {
-    setHistory([]);
-    setMessages([]);
-    setActiveChatIndex(null);
-    localStorage.removeItem("cgpt_history_all");
-  }
-
-  /* -------------------------------
-     If no chat selected, auto-create
-  --------------------------------*/
-  useEffect(() => {
-    if (activeChatIndex === null && history.length > 0) {
-      setActiveChatIndex(0);
-      setMessages(history[0].messages);
-    }
-  }, [history]);
-
-  /* -------------------------------
-     UI
-  --------------------------------*/
   return (
-    <div className="flex min-h-screen bg-[#0f1724] text-white">
+    <div className="flex h-screen bg-[#0b0f17] text-white">
+      <Sidebar messages={messages} setMessages={setMessages} />
 
-      {/* Sidebar */}
-      <Sidebar
-        chats={history}
-        onSelectChat={loadChat}
-        onNewChat={newChat}
-        onClear={clearHistory}
-      />
+      {/* MAIN CHAT AREA */}
+      <div className="flex-1 flex flex-col p-6">
 
-      {/* Chat Window */}
-      <div className="flex-1 p-6 flex flex-col">
-        <div className="flex-1 overflow-auto space-y-4 p-4 bg-[#111827] rounded-xl">
+        {/* HEADER WITH LOGO */}
+        <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/10">
+          <img
+            src="/hsit-logo.png"
+            alt="HSIT Logo"
+            className="w-12 h-12 rounded-lg object-cover border border-white/20"
+          />
+          <div>
+            <div className="text-xl font-bold">CollegeGPT — HSIT</div>
+            <div className="text-sm text-gray-400">
+              Ask about faculty, placements, admissions or upload image
+            </div>
+          </div>
+          <div className="ml-auto text-green-400 text-sm">Status: Live</div>
+        </div>
+
+        {/* MESSAGE WINDOW */}
+        <div className="flex-1 overflow-auto pr-3">
           {messages.map((m) => (
             <div
               key={m.id}
-              className={m.role === "user" ? "text-right" : "text-left"}
+              className={`mb-5 flex ${
+                m.role === "user" ? "justify-end" : "justify-start"
+              }`}
             >
               <div
-                className={`inline-block max-w-xl p-3 rounded-lg ${
-                  m.role === "user" ? "bg-purple-600" : "bg-gray-700"
+                className={`max-w-lg p-3 rounded-xl text-sm ${
+                  m.role === "user"
+                    ? "bg-purple-700"
+                    : "bg-gray-800 border border-white/10"
                 }`}
               >
-                <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+                {m.text}
 
-                {/* Source badges */}
-                {m.role === "bot" && (
-                  <div className="mt-1 text-xs text-gray-300">
-                    {m.source === "supabase" && "📘 Database"}
-                    {m.source === "llm" && "🤖 LLM"}
-                    {m.source === "vision" && "🖼 Vision"}
+                {m.source && (
+                  <div className="mt-2 text-[10px] opacity-70">
+                    {m.source === "supabase" && (
+                      <span className="px-2 py-1 bg-green-800 rounded text-[10px]">
+                        Database
+                      </span>
+                    )}
+                    {m.source === "llm" && (
+                      <span className="px-2 py-1 bg-blue-800 rounded text-[10px]">
+                        LLM
+                      </span>
+                    )}
+                    {m.source === "image-vision" && (
+                      <span className="px-2 py-1 bg-yellow-700 rounded text-[10px]">
+                        Vision
+                      </span>
+                    )}
                   </div>
                 )}
-
-                <div className="text-xs mt-1 text-gray-400">{m.time}</div>
               </div>
             </div>
           ))}
-
           <div ref={endRef} />
         </div>
 
-        {/* Input */}
-        <div className="mt-4 flex items-center gap-3">
+        {/* INPUT AREA */}
+        <div className="flex items-center gap-3 mt-4">
+
+          {/* TEXT BOX */}
           <input
-            className="flex-1 p-3 bg-gray-800 rounded-full outline-none border border-gray-700"
-            placeholder="Ask something..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
+            placeholder="Type your question… (e.g., Who teaches OS?)"
+            className="flex-1 p-3 rounded-full bg-[#111827] border border-white/10 outline-none"
           />
 
+          {/* IMAGE UPLOAD */}
+          <label className="cursor-pointer bg-yellow-600 px-4 py-2 rounded-full text-sm">
+            Upload
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImage}
+            />
+          </label>
+
+          {/* SEND BUTTON */}
           <button
             onClick={send}
             disabled={loading}
-            className="px-5 py-2 rounded-full bg-purple-600"
+            className="px-5 py-2 rounded-full bg-purple-600 disabled:opacity-40"
           >
-            {loading ? "..." : "Send"}
+            {loading ? "…" : "Send"}
           </button>
+        </div>
+
+        {/* FOOTER */}
+        <div className="mt-6 text-center text-gray-500 text-xs pb-4 opacity-80">
+          ⚠️ This AI may make mistakes. Still under training by HSIT students ❤️
         </div>
       </div>
     </div>
