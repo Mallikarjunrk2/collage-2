@@ -2,10 +2,11 @@
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * DB-first API: search Supabase faculty_list via ilike partial match.
- * If no DB match, fallback to Gemini (GEMINI_API_URL + GEMINI_API_KEY).
+ * DB-first API:
+ * 1) Try Supabase partial match on `faculty_list`.
+ * 2) If no DB match, fallback to Gemini (GEMINI_API_URL + GEMINI_API_KEY).
  *
- * IMPORTANT: set these env vars in Vercel:
+ * Make sure Vercel env vars are set:
  * NEXT_PUBLIC_SUPABASE_URL
  * SUPABASE_SERVICE_ROLE_KEY
  * GEMINI_API_URL
@@ -35,6 +36,7 @@ async function callGemini(question) {
     if (j.answer) return j.answer;
     if (j.choices?.[0]?.text) return j.choices[0].text;
     if (j.choices?.[0]?.message?.content) return j.choices[0].message.content;
+    // Fallback: stringify whatever returned
     return JSON.stringify(j);
   } catch (err) {
     return `LLM exception: ${String(err)}`;
@@ -44,7 +46,7 @@ async function callGemini(question) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST allowed" });
 
-  // Validate required envs
+  // Validate Supabase envs at runtime
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!SUPABASE_URL || !SUPABASE_KEY) {
@@ -54,7 +56,6 @@ export default async function handler(req, res) {
     });
   }
 
-  // Create supabase client
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
   try {
@@ -74,13 +75,26 @@ export default async function handler(req, res) {
       .limit(5);
 
     if (error) {
-      // Return DB error detail for debugging
+      // Provide DB error details for debugging
       return res.status(500).json({ error: "Supabase query error", details: error });
     }
 
     if (rows && rows.length > 0) {
       const r = rows[0];
-      const answer = [
+      const answerParts = [
         `${r.name}${r.designation ? " — " + r.designation : ""}`,
-        r.department && `Department: ${r.department}`,
-        r.courses_taugh_
+        r.department ? `Department: ${r.department}` : null,
+        r.courses_taught ? `Courses: ${r.courses_taught}` : null,
+        r.email_official ? `Email: ${r.email_official}` : null,
+      ].filter(Boolean);
+
+      return res.json({ source: "supabase", answer: answerParts.join("\n") });
+    }
+
+    // 2) Fallback LLM
+    const llmAnswer = await callGemini(q);
+    return res.json({ source: "llm", answer: llmAnswer });
+  } catch (err) {
+    return res.status(500).json({ error: "Unhandled exception in ask.js", details: String(err) });
+  }
+}
