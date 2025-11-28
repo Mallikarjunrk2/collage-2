@@ -1,40 +1,54 @@
 // components/Sidebar.js
-export default function Sidebar({ chats, onSelectChat, onNewChat, onClear }) {
+export default function Sidebar({
+  chats = [],
+  onSelectChat = () => {},
+  onNewChat = () => {},
+  onClear = () => {},
+}) {
+  // ensure chats is always array
+  const safeChats = Array.isArray(chats) ? chats : [];
+
   return (
-    <div className="w-64 h-screen bg-[#111827] border-r border-gray-800 p-4 flex flex-col text-gray-200">
-      
-      <button
-        onClick={onNewChat}
-        className="w-full mb-4 py-2 rounded-lg bg-purple-600 text-white text-sm"
-      >
-        ➕ New Chat
-      </button>
-
-      <div className="flex-1 overflow-auto space-y-2">
-        {chats.length === 0 && (
-          <div className="text-gray-500 text-sm">No history yet</div>
-        )}
-
-        {chats.map((chat, i) => (
-          <div
-            key={i}
-            onClick={() => onSelectChat(i)}
-            className="p-3 bg-gray-800/40 rounded-lg cursor-pointer hover:bg-gray-700/40 text-sm"
-          >
-            <div className="font-medium truncate">{chat.title}</div>
-            <div className="text-xs truncate text-gray-400">
-              {chat.messages[0]?.text}
-            </div>
-          </div>
-        ))}
+    <div className="w-72 h-screen bg-[#0b1220] border-r border-white/6 p-4 flex flex-col text-gray-200">
+      <div className="flex items-center justify-between mb-4">
+        <div className="font-semibold">Chats</div>
+        <button
+          onClick={onNewChat}
+          className="px-2 py-1 bg-purple-600 rounded text-xs"
+        >
+          + New
+        </button>
       </div>
 
-      <button
-        onClick={onClear}
-        className="mt-4 w-full py-2 rounded-lg bg-red-600 text-white text-sm"
-      >
-        🗑 Clear History
-      </button>
+      <div className="flex-1 overflow-auto space-y-2 py-1">
+        {safeChats.length === 0 && (
+          <div className="text-gray-400 text-sm">No chats yet — start a new chat</div>
+        )}
+
+        {safeChats.map((chat, i) => {
+          const title = chat?.title || `Chat ${i + 1}`;
+          const first = Array.isArray(chat?.messages) && chat.messages.length > 0 ? chat.messages[0].text : "";
+          return (
+            <div
+              key={i}
+              onClick={() => onSelectChat(i)}
+              className="p-3 bg-gray-800/30 rounded hover:bg-gray-800/50 cursor-pointer"
+            >
+              <div className="font-medium truncate">{title}</div>
+              <div className="text-xs text-gray-400 truncate">{first}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-4">
+        <button
+          onClick={onClear}
+          className="w-full py-2 rounded bg-red-600 text-xs"
+        >
+          🗑 Clear History
+        </button>
+      </div>
     </div>
   );
 }
