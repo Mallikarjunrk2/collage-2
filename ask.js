@@ -1,6 +1,0 @@
-import { createClient } from '@supabase/supabase-js';
-import fetch from 'node-fetch';
-const supabase=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-function buildFacultyAnswer(r){return `${r.name} — ${r.designation||''}\nDept: ${r.department||''}\nEmail: ${r.email_official||''}`;}
-async function callLLM(q){const k=process.env.OPENAI_API_KEY;if(!k)return"No LLM key";const res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:q}]})});const j=await res.json();return j.choices?.[0]?.message?.content;}
-export default async(req,res)=>{const{question}=req.body;const f=`%${question}%`;const {data}=await supabase.from('faculty_list').select('*').or(`name.ilike.${f},department.ilike.${f}`); if(data?.length){return res.json({source:'supabase',answer:data.map(buildFacultyAnswer).join('\n\n')});} return res.json({source:'llm',answer:await callLLM(question)});};
