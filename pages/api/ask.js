@@ -21,16 +21,8 @@ const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 
-// small alias map (extendable)
+// small alias map (extendable) — duplicates removed and commas fixed
 const aliasMap = {
-  "rcb": "royal challengers bengaluru",
-  "rcb owner": "royal challengers bengaluru",
-  "hod cse": "head of department cse",
-  "cse hod": "head of department cse",
-  "operating systems teacher": "operating systems",
-  "java teacher": "java",
-  "ml teacher": "machine learning",
-  "cloud teacher": "cloud computing"
   // branches & short codes
   "cse": "computer science and engineering",
   "computer science": "computer science and engineering",
@@ -61,7 +53,6 @@ const aliasMap = {
   "hit facukty list": "hirasugar institute of technology faculty list", // misspelling
   "hsit facylty list": "hirasugar institute of technology faculty list", // misspelling
   "hsit faculty": "hirasugar institute of technology faculty list",
-  "hsit faculty list": "hirasugar institute of technology faculty list",
   "hit faculty": "hirasugar institute of technology faculty list",
   "nidasoshi hit collage": "hirasugar institute of technology nidasoshi",
 
@@ -110,8 +101,13 @@ const aliasMap = {
   "digital electronics": "digital electronics",
   "vlsi": "vlsi design",
   "embedded": "embedded systems",
-  "embedded systems": "embedded systems"
+  "embedded systems": "embedded systems",
 
+  // small miscellaneous aliases
+  "operating systems teacher": "operating systems",
+  "java teacher": "java",
+  "ml teacher": "machine learning",
+  "cloud teacher": "cloud computing"
 };
 
 function normalizeText(s = "") {
