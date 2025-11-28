@@ -1,191 +1,207 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import Sidebar from "../components/Sidebar";
 
 export default function Home() {
+  // Chat messages for active chat
+  const [messages, setMessages] = useState([]);
+
+  // All chat histories
+  const [history, setHistory] = useState([]);
+
+  // Selected chat index
+  const [activeChatIndex, setActiveChatIndex] = useState(null);
+
   const [q, setQ] = useState("");
-  const [typing, setTyping] = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      id: 0,
-      role: "bot",
-      text: "Hi 👋 I’m CollegeGPT (HSIT). Ask about faculty, placements, admissions, or upload an image to describe.",
-      time: new Date().toLocaleTimeString(),
-      source: "system",
-    },
-  ]);
+  const [loading, setLoading] = useState(false);
   const endRef = useRef();
 
+  /* -------------------------------
+     Load history on first load
+  --------------------------------*/
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem("cgpt_history_all")) || [];
+    setHistory(saved);
+  }, []);
+
+  /* -------------------------------
+     Auto scroll chat
+  --------------------------------*/
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typing]);
+  }, [messages]);
 
+  /* -------------------------------
+     Save history whenever updated
+  --------------------------------*/
+  useEffect(() => {
+    localStorage.setItem("cgpt_history_all", JSON.stringify(history));
+  }, [history]);
+
+  /* -------------------------------
+     Send message
+  --------------------------------*/
   async function send() {
     if (!q.trim()) return;
-    const user = { id: Date.now(), role: "user", text: q.trim(), time: new Date().toLocaleTimeString() };
-    setMessages((m) => [...m, user]);
+
+    const userMessage = {
+      id: Date.now(),
+      role: "user",
+      text: q.trim(),
+      time: new Date().toLocaleTimeString(),
+    };
+
+    setMessages((m) => [...m, userMessage]);
     setQ("");
-    setTyping(true);
+    setLoading(true);
 
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: user.text }),
+        body: JSON.stringify({ question: userMessage.text }),
       });
+
       const json = await res.json();
 
-      const bot = {
+      const botMessage = {
         id: Date.now() + 1,
         role: "bot",
-        text: json.answer || json.error || "No answer.",
+        text: json.answer || json.error || "No answer",
         source: json.source || "llm",
-        matched_alias: json.matched_alias || null,
+        alias: json.alias || null,
         time: new Date().toLocaleTimeString(),
       };
 
-      setMessages((m) => [...m, bot]);
-    } catch (err) {
-      setMessages((m) => [...m, { id: Date.now() + 2, role: "bot", text: "Error contacting API.", source: "error", time: new Date().toLocaleTimeString() }]);
+      const updatedMessages = [...messages, userMessage, botMessage];
+
+      setMessages(updatedMessages);
+
+      // Store this chat in history
+      saveChatToHistory(updatedMessages);
     } finally {
-      setTyping(false);
+      setLoading(false);
     }
   }
 
-  // regenerate: re-ask prompt (sends bot.text to API)
-  async function regenerate(promptText) {
-    if (!promptText) return;
-    setTyping(true);
-    try {
-      const res = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ question: promptText }),
-      });
-      const json = await res.json();
-      const bot = {
-        id: Date.now(),
-        role: "bot",
-        text: json.answer || json.error || "No answer.",
-        source: json.source || "llm",
-        matched_alias: json.matched_alias || null,
-        time: new Date().toLocaleTimeString(),
-      };
-      setMessages((m) => [...m, bot]);
-    } catch {
-      setMessages((m) => [...m, { id: Date.now(), role: "bot", text: "Regenerate failed.", source: "error", time: new Date().toLocaleTimeString() }]);
-    } finally {
-      setTyping(false);
-    }
-  }
+  /* -------------------------------
+     Save current chat into history
+  --------------------------------*/
+  function saveChatToHistory(chatMessages) {
+    const title =
+      chatMessages[0]?.text?.slice(0, 25) || "New Chat";
 
-  // image describe (uploads base64 to describeImage API)
-  async function handleFile(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result.split(",")[1];
-      // show image
-      setMessages((m) => [...m, { id: Date.now(), role: "user", image: base64, time: new Date().toLocaleTimeString() }]);
-
-      setTyping(true);
-      try {
-        const res = await fetch("/api/describeImage", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ image: base64 }),
-        });
-        const json = await res.json();
-        const bot = {
-          id: Date.now() + 1,
-          role: "bot",
-          text: json.answer || json.error || "No description.",
-          source: json.source || "vision",
-          matched_alias: json.matched_alias || null,
-          time: new Date().toLocaleTimeString(),
-        };
-        setMessages((m) => [...m, bot]);
-      } catch {
-        setMessages((m) => [...m, { id: Date.now(), role: "bot", text: "Describe failed.", source: "error", time: new Date().toLocaleTimeString() }]);
-      } finally {
-        setTyping(false);
-      }
+    const newHistory = [...history];
+    newHistory[activeChatIndex] = {
+      title,
+      messages: chatMessages,
     };
-    reader.readAsDataURL(file);
-    e.target.value = "";
+
+    setHistory(newHistory);
   }
 
+  /* -------------------------------
+     New Chat
+  --------------------------------*/
+  function newChat() {
+    const newChatData = { title: "New Chat", messages: [] };
+    const newHistory = [...history, newChatData];
+
+    setHistory(newHistory);
+    setActiveChatIndex(newHistory.length - 1);
+    setMessages([]);
+  }
+
+  /* -------------------------------
+     Select Chat From Sidebar
+  --------------------------------*/
+  function loadChat(index) {
+    setActiveChatIndex(index);
+    setMessages(history[index].messages);
+  }
+
+  /* -------------------------------
+     Clear all chats
+  --------------------------------*/
+  function clearHistory() {
+    setHistory([]);
+    setMessages([]);
+    setActiveChatIndex(null);
+    localStorage.removeItem("cgpt_history_all");
+  }
+
+  /* -------------------------------
+     If no chat selected, auto-create
+  --------------------------------*/
+  useEffect(() => {
+    if (activeChatIndex === null && history.length > 0) {
+      setActiveChatIndex(0);
+      setMessages(history[0].messages);
+    }
+  }, [history]);
+
+  /* -------------------------------
+     UI
+  --------------------------------*/
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-3xl bg-[#0f1724] p-6 rounded-xl shadow-xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="bg-purple-600 w-12 h-12 rounded-xl grid place-items-center text-2xl">🎓</div>
-          <div>
-            <div className="text-xl font-semibold">CollegeGPT — HSIT</div>
-            <div className="text-sm text-gray-400">Ask about faculty, placements, or upload an image to describe</div>
-          </div>
-          <div className="ml-auto text-sm text-green-400">Status: Live</div>
-        </div>
+    <div className="flex min-h-screen bg-[#0f1724] text-white">
 
-        <div className="h-[56vh] overflow-auto p-4 rounded-lg bg-gradient-to-b from-transparent to-black/10 space-y-4">
+      {/* Sidebar */}
+      <Sidebar
+        chats={history}
+        onSelectChat={loadChat}
+        onNewChat={newChat}
+        onClear={clearHistory}
+      />
+
+      {/* Chat Window */}
+      <div className="flex-1 p-6 flex flex-col">
+        <div className="flex-1 overflow-auto space-y-4 p-4 bg-[#111827] rounded-xl">
           {messages.map((m) => (
-            <div key={m.id} className={m.role === "user" ? "text-right" : "text-left"}>
-              {m.text && (
-                <div className={`inline-block p-3 rounded-xl ${m.role === "user" ? "bg-purple-700" : "bg-slate-700"}`}>
-                  <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+            <div
+              key={m.id}
+              className={m.role === "user" ? "text-right" : "text-left"}
+            >
+              <div
+                className={`inline-block max-w-xl p-3 rounded-lg ${
+                  m.role === "user" ? "bg-purple-600" : "bg-gray-700"
+                }`}
+              >
+                <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
 
-                  {/* source badge + matched alias */}
-                  {m.role === "bot" && (
-                    <div className="mt-2 flex items-center gap-2">
-                      {m.source === "supabase" ? (
-                        <span className="text-[10px] px-2 py-0.5 bg-green-700/30 rounded-full text-green-200">Database</span>
-                      ) : m.source === "vision" ? (
-                        <span className="text-[10px] px-2 py-0.5 bg-yellow-700/30 rounded-full text-yellow-200">Vision</span>
-                      ) : m.source === "llm" ? (
-                        <span className="text-[10px] px-2 py-0.5 bg-blue-700/30 rounded-full text-blue-200">LLM</span>
-                      ) : (
-                        <span className="text-[10px] px-2 py-0.5 bg-red-700/20 rounded-full text-red-200">Error</span>
-                      )}
+                {/* Source badges */}
+                {m.role === "bot" && (
+                  <div className="mt-1 text-xs text-gray-300">
+                    {m.source === "supabase" && "📘 Database"}
+                    {m.source === "llm" && "🤖 LLM"}
+                    {m.source === "vision" && "🖼 Vision"}
+                  </div>
+                )}
 
-                      {m.matched_alias && (
-                        <span className="text-[10px] px-2 py-0.5 bg-gray-700/30 rounded-full text-gray-200">alias: {m.matched_alias}</span>
-                      )}
-
-                      <button onClick={() => regenerate(m.text)} className="text-xs text-blue-300 ml-2 hover:underline">Regenerate</button>
-                    </div>
-                  )}
-
-                  <div className="text-xs text-gray-400 mt-2">{m.time}</div>
-                </div>
-              )}
-
-              {m.image && <img src={`data:image/png;base64,${m.image}`} alt="uploaded" className="max-w-xs rounded-xl mt-2 border border-gray-600" />}
+                <div className="text-xs mt-1 text-gray-400">{m.time}</div>
+              </div>
             </div>
           ))}
-
-          {typing && (
-            <div className="text-left">
-              <div className="inline-block px-4 py-2 rounded-xl bg-slate-700 animate-pulse text-gray-300">• • •</div>
-            </div>
-          )}
 
           <div ref={endRef} />
         </div>
 
+        {/* Input */}
         <div className="mt-4 flex items-center gap-3">
           <input
+            className="flex-1 p-3 bg-gray-800 rounded-full outline-none border border-gray-700"
+            placeholder="Ask something..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Type your question... (e.g., Who teaches Operating Systems?)"
-            className="flex-1 p-3 rounded-full bg-slate-900 border border-slate-800 outline-none"
           />
 
-          <button onClick={send} className="px-4 py-2 rounded-full bg-purple-600 text-white">Send</button>
-
-          <label className="px-4 py-2 rounded-full bg-yellow-600 text-white cursor-pointer">
-            🖼 Upload
-            <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
-          </label>
+          <button
+            onClick={send}
+            disabled={loading}
+            className="px-5 py-2 rounded-full bg-purple-600"
+          >
+            {loading ? "..." : "Send"}
+          </button>
         </div>
       </div>
     </div>
