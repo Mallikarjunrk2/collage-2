@@ -1,8 +1,4 @@
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Only POST allowed" });
-  }
-
   const { prompt } = req.body || {};
   if (!prompt) return res.status(400).json({ error: "prompt required" });
 
@@ -17,12 +13,10 @@ export default async function handler(req, res) {
     });
 
     const json = await resp.json();
-    const base64 = json.images?.[0]?.image;
+    const img = json.images?.[0]?.image;
 
-    if (!base64) return res.json({ error: "No image returned" });
-
-    return res.json({ image: base64 });
-  } catch (err) {
-    return res.status(500).json({ error: String(err) });
+    res.json({ image: img || null });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
   }
 }
