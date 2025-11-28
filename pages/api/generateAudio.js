@@ -21,11 +21,10 @@ export default async function handler(req, res) {
     });
 
     const json = await resp.json();
-    const b64 = json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!b64) return res.json({ error: "No audio returned" });
+    const audio = json?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 
-    return res.json({ audio: b64 });
+    res.json({ audio: audio || null });
   } catch (e) {
-    return res.status(500).json({ error: String(e) });
+    res.status(500).json({ error: String(e) });
   }
 }
