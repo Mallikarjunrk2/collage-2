@@ -1,0 +1,1 @@
+console.log('seed script example');
