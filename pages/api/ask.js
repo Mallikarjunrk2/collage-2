@@ -31,6 +31,87 @@ const aliasMap = {
   "java teacher": "java",
   "ml teacher": "machine learning",
   "cloud teacher": "cloud computing"
+  // branches & short codes
+  "cse": "computer science and engineering",
+  "computer science": "computer science and engineering",
+  "ece": "electronics and communication engineering",
+  "me": "mechanical engineering",
+  "ce": "civil engineering",
+  "eee": "electrical and electronics engineering",
+
+  // college canonical names + many variants (HSIT / HIT / Hirasugar / Nidasoshi)
+  "hsit": "hirasugar institute of technology",
+  "hsit nidasoshi": "hirasugar institute of technology nidasoshi",
+  "hirasugar institute of technology": "hirasugar institute of technology",
+  "hirasugar institute of technology nidasoshi": "hirasugar institute of technology nidasoshi",
+  "hirasugar": "hirasugar institute of technology",
+  "hirasugar hit": "hirasugar institute of technology",
+  "hit nidasoshi": "hirasugar institute of technology nidasoshi",
+  "hit nidaoshi": "hirasugar institute of technology nidasoshi",
+  "hit nidaoshi college": "hirasugar institute of technology nidasoshi",
+  "hit nidasoshi engineering": "hirasugar institute of technology nidasoshi",
+  "nidasoshi": "hirasugar institute of technology nidasoshi",
+  "nidasoshi engineering college": "hirasugar institute of technology nidasoshi",
+  "nidasoshi engineering collage": "hirasugar institute of technology nidasoshi",
+  "nidasshi": "hirasugar institute of technology nidasoshi",        // common misspelling
+  "nidasshi hit": "hirasugar institute of technology nidasoshi",
+  "nidasshi hsit": "hirasugar institute of technology nidasoshi",
+  "hsit faculty list": "hirasugar institute of technology faculty list",
+  "hit faculty list": "hirasugar institute of technology faculty list",
+  "hit facukty list": "hirasugar institute of technology faculty list", // misspelling
+  "hsit facylty list": "hirasugar institute of technology faculty list", // misspelling
+  "hsit faculty": "hirasugar institute of technology faculty list",
+  "hsit faculty list": "hirasugar institute of technology faculty list",
+  "hit faculty": "hirasugar institute of technology faculty list",
+  "nidasoshi hit collage": "hirasugar institute of technology nidasoshi",
+
+  // roles
+  "hod": "head of department",
+  "head": "head of department",
+  "head of department": "head of department",
+  "cse hod": "head of department, computer science and engineering",
+  "principal": "principal",
+  "dean": "dean",
+
+  // cricket example (user asked earlier)
+  "rcb": "royal challengers bengaluru",
+  "royal challengers bengaluru": "royal challengers bengaluru",
+  "rcb owner": "royal challengers bengaluru owner",
+  "royal challengers bangalore": "royal challengers bengaluru",
+
+  // faculty name variants (common typing variants) — keep existing ones
+  "mallikarjun": "prof. mallikarjun g. ganachari",
+  "mallikarjun ganachari": "prof. mallikarjun g. ganachari",
+  "mgganachari": "prof. mallikarjun g. ganachari",
+  "sapna": "prof. sapna b patil",
+  "sapna patil": "prof. sapna b patil",
+  "kb manwade": "dr. k. b. manwade",
+  "manwade": "dr. k. b. manwade",
+  "manjaragi": "dr. s. v. manjaragi",
+  "s v manjaragi": "dr. s. v. manjaragi",
+  "aruna daptardar": "mrs. aruna anil daptardar",
+  "aruna": "mrs. aruna anil daptardar",
+  "manoj chitale": "manojkumar a chitale",
+  "shruti kumbar": "prof. shruti kumbar",
+  "sujata mane": "ms. sujata ishwar mane",
+
+  // course shortcuts and common course queries
+  "os": "operating systems",
+  "operating system": "operating systems",
+  "operating systems": "operating systems",
+  "data structures": "data structures and applications",
+  "ds": "data structures and applications",
+  "dbms": "database management systems",
+  "dbms course": "database management systems",
+  "ml": "machine learning",
+  "machine learning": "machine learning",
+  "cloud": "cloud computing",
+  "java": "java",
+  "digital electronics": "digital electronics",
+  "vlsi": "vlsi design",
+  "embedded": "embedded systems",
+  "embedded systems": "embedded systems"
+
 };
 
 function normalizeText(s = "") {
