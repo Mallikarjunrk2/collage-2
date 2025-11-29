@@ -12,7 +12,7 @@ export default function Home() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send question to API
+  // Send text question to API
   async function send() {
     if (!q.trim()) return;
     const userMsg = {
@@ -54,14 +54,14 @@ export default function Home() {
     setLoading(false);
   }
 
-  // Image Upload Describe: compress client-side and send to /api/describeImage_alt
+  // Image upload: compress and send to describe endpoint
   async function handleImageUpload(e) {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     setLoading(true);
 
     // convert File -> compressed dataURL
-    const toDataURL = (file, maxWidth = 1200, quality = 0.7) =>
+    const toDataURL = (file, maxWidth = 1200, quality = 0.75) =>
       new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onerror = () => reject(new Error("FileReader failed"));
@@ -90,10 +90,8 @@ export default function Home() {
       });
 
     try {
-      // 1) compress the image
-      const dataUrl = await toDataURL(file, 1200, 0.75);
-
-      // 2) show the image as a user message (preview in chat)
+      const dataUrl = await toDataURL(file);
+      // Insert user image bubble
       const userImageMsg = {
         id: Date.now(),
         role: "user",
@@ -104,16 +102,14 @@ export default function Home() {
       };
       setMessages((m) => [...m, userImageMsg]);
 
-      // 3) send to describe endpoint (alt uses Gemini inlineData or fallback)
       const payload = { image: dataUrl, filename: file.name || "photo.jpg" };
-
       let resp = await fetch("/api/describeImage_alt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }).catch(() => null);
 
-      // fallback to original describeImage if alt not present
+      // fallback if alt endpoint not available
       if (!resp || !resp.ok) {
         resp = await fetch("/api/describeImage", {
           method: "POST",
@@ -162,65 +158,37 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#071024] text-white flex justify-center p-6">
-      <div className="w-full max-w-4xl flex flex-col">
+    <div className="min-h-screen bg-[#0b1220] text-white flex justify-center p-6">
+      <div className="w-full max-w-3xl flex flex-col">
 
-        {/* Hero / Headline (replacement header) */}
-        <div className="hero-wrapper mb-6">
-          <div className="hero-inner">
-            <div className="hero-top">
-              <div className="brand">🎓 CollegeGPT — <span className="brand-sub">HSIT</span></div>
-              <div className="cta-row">
-                <button className="cta-primary">Enroll now for $499</button>
-              </div>
-            </div>
-
-            <h1 className="hero-title">
-              Master prompt engineering for your college projects — <span className="accent">Supercharge your workflow</span>
-            </h1>
-
-            <p className="hero-sub">
-              Ask about faculty, placements, admissions, or upload an image to get a short, friendly summary.
-            </p>
-
-            <div className="hero-input">
-              <div className="hero-input-left">
-                <button className="icon-btn">+</button>
-                <button className="icon-btn">⚙️</button>
-                <span className="tools-label">Tools</span>
-              </div>
-
-              <input
-                placeholder="Summarize meeting notes or upload a screenshot…"
-                className="hero-search"
-                onKeyDown={(e) => e.key === "Enter" && send()}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-              />
-
-              <div className="hero-input-right">
-                <button onClick={send} className="send-btn-hero" disabled={loading}>{loading ? "…" : "Send"}</button>
-                <label className="upload-hero">
-                  📷
-                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                </label>
-              </div>
+        {/* Restored simple header (original style) */}
+        <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/10">
+          <div>
+            <div className="text-xl font-bold">🎓 CollegeGPT — HSIT</div>
+            <div className="text-sm text-gray-400">
+              Ask about faculty, placements, admissions or upload an image.
             </div>
           </div>
+          <div className="ml-auto text-green-400 text-sm">Status: Live</div>
         </div>
 
         {/* Chat Window */}
-        <div className="flex-1 overflow-auto bg-[#0f1720] p-4 rounded-xl border border-white/6 min-h-[55vh]">
+        <div className="flex-1 overflow-auto bg-[#111827] p-4 rounded-xl border border-white/10 min-h-[60vh]">
           {messages.map((m) => (
             <div
               key={m.id}
-              className={`mb-5 flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`mb-5 flex ${
+                m.role === "user" ? "justify-end" : "justify-start"
+              }`}
             >
               <div
-                className={`max-w-xl p-3 rounded-xl ${m.role === "user" ? "bg-purple-700" : "bg-gray-800 border border-white/10"}`}
-                style={{ wordBreak: "break-word" }}
+                className={`max-w-xl p-3 rounded-xl ${
+                  m.role === "user"
+                    ? "bg-purple-700"
+                    : "bg-gray-800 border border-white/10"
+                }`}
               >
-                {/* image preview for messages that include one */}
+                {/* Image preview */}
                 {m.image ? (
                   <div className="mb-2">
                     <img
@@ -228,15 +196,14 @@ export default function Home() {
                       alt={m.filename || "uploaded image"}
                       style={{ maxWidth: "520px", width: "100%", borderRadius: 12, display: "block" }}
                     />
-                    {/* optional filename line */}
                     {m.filename ? <div className="text-xs text-gray-400 mt-1">{m.filename}</div> : null}
                   </div>
                 ) : null}
 
-                {/* message text */}
+                {/* Text */}
                 {m.text ? <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div> : null}
 
-                {/* source label */}
+                {/* Source label */}
                 {m.source && (
                   <div className="mt-1 text-xs text-gray-400">
                     {m.source === "supabase" && "📘 Database"}
@@ -244,7 +211,6 @@ export default function Home() {
                     {m.source === "vision" && "🖼 Vision"}
                     {m.source === "vision-error" && "⚠️ Vision Error"}
                     {m.source === "gemini-vision" && "🖼 Gemini"}
-                    {m.source === "openai" && "🧠 OpenAI"}
                   </div>
                 )}
 
@@ -252,11 +218,44 @@ export default function Home() {
               </div>
             </div>
           ))}
-
           <div ref={endRef}></div>
         </div>
 
-        {/* Footer */}
+        {/* --- NEW single nice input bar (keeps upload + send) --- */}
+        <div className="mt-4">
+          <div className="flex items-center gap-3 bg-[#0b1220] p-3 rounded-full border border-white/6">
+            {/* Upload button (left) */}
+            <label className="cursor-pointer bg-yellow-600 px-4 py-2 rounded-full text-sm">
+              📷 Upload
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+            </label>
+
+            {/* Big rounded input (center) */}
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && send()}
+              placeholder="Summarize meeting notes or upload a screenshot..."
+              className="flex-1 p-3 rounded-full bg-gray-900 border border-white/10 outline-none"
+            />
+
+            {/* Send button (right) */}
+            <button
+              onClick={send}
+              disabled={loading}
+              className="px-5 py-2 rounded-full bg-purple-600 disabled:opacity-40"
+            >
+              {loading ? "…" : "Send"}
+            </button>
+          </div>
+        </div>
+
+        {/* Footer note */}
         <div className="mt-6 text-center text-gray-500 text-xs pb-4 opacity-80">
           ⚠️ This AI may make mistakes. Still learning from HSIT students ❤️
         </div>
