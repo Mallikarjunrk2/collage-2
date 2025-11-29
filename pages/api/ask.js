@@ -2,13 +2,14 @@
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * Improved ask endpoint with bigger alias map and fuzzy name matching.
- * Replace existing pages/api/ask.js with this file.
+ * ask.js - DB-first + LLM fallback (Gemini or OpenAI)
  *
- * Requires:
+ * Env vars expected:
  * - NEXT_PUBLIC_SUPABASE_URL
  * - SUPABASE_SERVICE_ROLE_KEY OR NEXT_PUBLIC_SUPABASE_ANON_KEY
- * - (optional) GEMINI_API_URL and GEMINI_API_KEY for LLM fallback
+ * - GEMINI_API_URL (optional)
+ * - GEMINI_API_KEY (optional)
+ * - OPENAI_API_KEY (optional; used in preference to Gemini if present)
  */
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,6 +17,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_P
 const GEMINI_API_URL =
   process.env.GEMINI_API_URL || "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || null;
 
 /* ----------------- helpers ----------------- */
 function normalizeText(s = "") {
@@ -29,7 +31,6 @@ function tokenize(s = "") {
   return normalizeText(s).split(" ").filter(Boolean);
 }
 function levenshtein(a = "", b = "") {
-  // small, efficient edit distance for short tokens
   a = String(a || "");
   b = String(b || "");
   const n = a.length, m = b.length;
@@ -49,6 +50,7 @@ function levenshtein(a = "", b = "") {
   return v1[m];
 }
 
+/* ---------------- LLM helpers ----------------- */
 async function callGemini(question) {
   if (!GEMINI_API_KEY || !GEMINI_API_URL) return { answer: "LLM not configured.", source: "llm" };
   try {
@@ -70,44 +72,75 @@ async function callGemini(question) {
   }
 }
 
+async function callOpenAI(question) {
+  if (!OPENAI_API_KEY) return { answer: "OpenAI not configured.", source: "llm" };
+  try {
+    const payload = {
+      model: "gpt-4o-mini", // change if you have different preferred model
+      messages: [
+        { role: "system", content: "You are CollegeGPT for HSIT. Answer concisely and clearly." },
+        { role: "user", content: question },
+      ],
+      max_tokens: 512,
+      temperature: 0.2,
+    };
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      return { answer: `OpenAI error ${resp.status}: ${txt}`, source: "llm" };
+    }
+    const json = await resp.json();
+    const text = json?.choices?.[0]?.message?.content || null;
+    return { answer: text || "No answer from OpenAI.", source: "llm" };
+  } catch (err) {
+    return { answer: `OpenAI exception: ${String(err)}`, source: "llm" };
+  }
+}
+
+async function callAnyLLM(question) {
+  // prefer OpenAI if configured, else Gemini
+  if (OPENAI_API_KEY) return callOpenAI(question);
+  return callGemini(question);
+}
+
 /* --------------- alias map (extended) --------------- */
-/* Add any other variants you see in logs. This map is used to expand short forms
-   before tokenizing (so "kb manawade" -> "k b manwade" or direct canonical name) */
 const aliasMap = {
-  // college variants
   hsit: "hirasugar institute of technology",
   "hsit nidasoshi": "hirasugar institute of technology nidasoshi",
   hit: "hirasugar institute of technology",
   hirasugar: "hirasugar institute of technology",
   nidasoshi: "hirasugar institute of technology nidasoshi",
-  // branches
   cse: "computer science and engineering",
   "computer science": "computer science and engineering",
   ece: "electronics and communication engineering",
   me: "mechanical engineering",
   ce: "civil engineering",
   eee: "electrical and electronics engineering",
-  // cricket / misc
   rcb: "royal challengers bengaluru",
   "rcb owner": "royal challengers bengaluru owner",
-  // faculty short forms and misspellings
-  "mallikarjun": "prof. mallikarjun g. ganachari",
+  mallikarjun: "prof. mallikarjun g. ganachari",
   "mallikarjun ganachari": "prof. mallikarjun g. ganachari",
-  "mgganachari": "prof. mallikarjun g. ganachari",
-  "sapna": "prof. sapna b patil",
+  mgganachari: "prof. mallikarjun g. ganachari",
+  sapna: "prof. sapna b patil",
   "sapna patil": "prof. sapna b patil",
   "kb manwade": "dr. k. b. manwade",
   "k b manwade": "dr. k. b. manwade",
-  "kb manawade": "dr. k. b. manwade", // common misspell
+  "kb manawade": "dr. k. b. manwade",
   "kb manwad": "dr. k. b. manwade",
-  "manwade": "dr. k. b. manwade",
-  "manjaragi": "dr. s. v. manjaragi",
+  manwade: "dr. k. b. manwade",
+  manjaragi: "dr. s. v. manjaragi",
   "s v manjaragi": "dr. s. v. manjaragi",
   "aruna daptardar": "mrs. aruna anil daptardar",
   "manoj chitale": "manojkumar a chitale",
   "shruti kumbar": "prof. shruti kumbar",
   "sujata mane": "ms. sujata ishwar mane",
-  // courses shorthand
   os: "operating systems",
   "operating system": "operating systems",
   ds: "data structures and applications",
@@ -115,10 +148,10 @@ const aliasMap = {
   ml: "machine learning",
   cloud: "cloud computing",
   vlsi: "vlsi design",
-  embedded: "embedded systems"
+  embedded: "embedded systems",
 };
 
-/* --------- intent keywords (same as before) --------- */
+/* --------- intent keywords --------- */
 const COLLEGE_KEYS = ["college", "hsit", "hit", "hirasugar", "nidasoshi", "campus", "established", "affiliation", "website", "contact", "phone", "email"];
 const FACULTY_KEYS = ["who", "teacher", "teaches", "hod", "prof", "professor", "assistant", "associate", "lecturer", "instructor", "faculty", "teach"];
 const STAFF_KEYS = ["staff", "peon", "helper", "mechanic", "lab", "lab assistant", "lab instructor", "clerk"];
@@ -165,7 +198,6 @@ function scorePersonRow(row, tokens) {
     // fuzzy: compare token to each name part using levenshtein (small tolerance)
     for (const np of nameParts) {
       const dist = levenshtein(t, np);
-      // allow 1 edit for short tokens (<=3), 2 edits for medium (<=6), else <=2
       const thresh = np.length <= 3 ? 1 : np.length <= 6 ? 2 : 2;
       if (dist <= thresh) { score += 5; matched++; break; }
     }
@@ -178,7 +210,6 @@ function scorePersonRow(row, tokens) {
     if (mobile.includes(t)) { score += 2; matched++; }
   }
 
-  // coverage bonus
   const coverage = tokens.length ? matched / tokens.length : 0;
   if (coverage >= 0.6) score += 2;
   else if (coverage >= 0.35) score += 1;
@@ -218,9 +249,22 @@ export default async function handler(req, res) {
 
   const tokens = tokenize(effectiveQuery).filter(Boolean);
 
-  // supabase required for DB-first behavior
+  // --- heuristic: route obvious non-college general-knowledge questions to LLM ---
+  const GENERAL_ENTITIES = new Set([
+    "google","gmail","facebook","twitter","amazon","microsoft","elon","musk","sundar","pichai",
+    "modi","narendra","pm","prime","minister","president","owner","owns","owners","who","what","when","where","why"
+  ]);
+  const hasGeneralEntity = tokens.some(t => GENERAL_ENTITIES.has(t));
+  const startsWithWH = /^(who|what|when|where|why|how)\b/.test(qNorm);
+
+  if (startsWithWH && hasGeneralEntity) {
+    const llm = await callAnyLLM(effectiveQuery);
+    return res.json({ answer: llm.answer, source: llm.source, debug: { route: "wh-general-heuristic" } });
+  }
+
+  // If supabase not configured, fallback to LLM immediately
   if (!SUPABASE_URL || !SUPABASE_KEY) {
-    const llm = await callGemini(effectiveQuery);
+    const llm = await callAnyLLM(effectiveQuery);
     return res.json({ ...llm, debug: { note: "supabase not configured" } });
   }
 
@@ -230,9 +274,20 @@ export default async function handler(req, res) {
   try {
     /* ---------- college info ---------- */
     if (intent === "college") {
-      const { data: collegeRow, error } = await supabase.from("college_basic").select("*").limit(1).maybeSingle();
-      if (error) { const llm = await callGemini(effectiveQuery); return res.json({ answer: llm.answer, source: "llm", debug: { db_error: String(error) } }); }
-      if (!collegeRow) return res.json({ answer: "College information not found in DB.", source: "db-empty" });
+      // support both possible table names: college_info, college_basic
+      const tryTables = ["college_info", "college_basic"];
+      let collegeRow = null;
+      for (const t of tryTables) {
+        try {
+          const { data, error } = await supabase.from(t).select("*").limit(1).maybeSingle();
+          if (!error && data) { collegeRow = data; break; }
+        } catch (_) {}
+      }
+      if (!collegeRow) {
+        // fallback to LLM if college info missing
+        const llm = await callAnyLLM(effectiveQuery);
+        return res.json({ answer: llm.answer, source: llm.source, debug: { route: "college-fallback-llm" } });
+      }
       const parts = [];
       if (collegeRow.college_name || collegeRow.name) parts.push(collegeRow.college_name || collegeRow.name);
       if (collegeRow.location) parts.push(`Location: ${collegeRow.location}`);
@@ -241,15 +296,15 @@ export default async function handler(req, res) {
       if (collegeRow.approved_by) parts.push(`Approved by: ${collegeRow.approved_by}`);
       if (collegeRow.type) parts.push(`Type: ${collegeRow.type}`);
       if (collegeRow.campus_area) parts.push(`Campus area: ${collegeRow.campus_area}`);
-      if (collegeRow.contact_phone) parts.push(`Phone: ${collegeRow.contact_phone}`);
-      if (collegeRow.contact_email) parts.push(`Email: ${collegeRow.contact_email}`);
+      if (collegeRow.phone || collegeRow.contact_phone) parts.push(`Phone: ${collegeRow.phone || collegeRow.contact_phone}`);
+      if (collegeRow.email || collegeRow.contact_email) parts.push(`Email: ${collegeRow.email || collegeRow.contact_email}`);
       if (collegeRow.website) parts.push(`Website: ${collegeRow.website}`);
       return res.json({ answer: parts.join("\n"), source: "supabase-college" });
     }
 
     /* ---------- placements ---------- */
     if (intent === "placements") {
-      const tableCandidates = ["placements", "Collage_placements"];
+      const tableCandidates = ["placements", "Collage_placements", "college_placements"];
       let rows = [];
       for (const t of tableCandidates) {
         try {
@@ -257,7 +312,10 @@ export default async function handler(req, res) {
           if (Array.isArray(data) && data.length) rows = rows.concat(data.map(r => ({ ...r, __table: t })));
         } catch (_) {}
       }
-      if (!rows.length) return res.json({ answer: "No placement records found in DB.", source: "db-empty" });
+      if (!rows.length) {
+        const llm = await callAnyLLM(effectiveQuery);
+        return res.json({ answer: llm.answer, source: llm.source, debug: { route: "placements-fallback-llm" } });
+      }
       const yearToken = tokens.find(t => /^\d{4}$/.test(t) || /\d{2}-\d{2}/.test(t));
       const companyToken = tokens.find(t => t.length > 2 && !/^\d+$/.test(t));
       let matches = rows;
@@ -278,35 +336,56 @@ export default async function handler(req, res) {
     /* ---------- subjects ---------- */
     if (intent === "subjects") {
       const subjQuery = tokens.join(" ");
-      const { data: subjRows } = await supabase.from("subjects").select("*").ilike("subject_title", `%${subjQuery}%`).limit(20);
-      if (subjRows && subjRows.length) {
-        const out = subjRows.map(s => `${s.subject_code} — ${s.subject_title}${s.notes ? " — " + s.notes : ""}`);
-        return res.json({ answer: out.join("\n"), source: "supabase-subjects" });
-      }
+      try {
+        const { data: subjRows } = await supabase.from("subjects").select("*").ilike("subject_title", `%${subjQuery}%`).limit(20);
+        if (subjRows && subjRows.length) {
+          const out = subjRows.map(s => `${s.subject_code} — ${s.subject_title}${s.notes ? " — " + s.notes : ""}`);
+          return res.json({ answer: out.join("\n"), source: "supabase-subjects" });
+        }
+      } catch (_) {}
       const semToken = tokens.find(t => /^\d+$/.test(t));
       if (semToken) {
-        const { data: sems } = await supabase.from("semesters").select("*").eq("semester_no", Number(semToken)).limit(20);
-        if (sems && sems.length) return res.json({ answer: `Found ${sems.length} semester rows. Use "subjects sem ${sems[0].semester_no} <branch>"`, source: "supabase-semesters" });
+        try {
+          const { data: sems } = await supabase.from("semesters").select("*").eq("semester_no", Number(semToken)).limit(20);
+          if (sems && sems.length) return res.json({ answer: `Found ${sems.length} semester rows. Use "subjects sem ${sems[0].semester_no} <branch>"`, source: "supabase-semesters" });
+        } catch (_) {}
       }
-      return res.json({ answer: "No subjects match found.", source: "db-empty" });
+      const llm = await callAnyLLM(effectiveQuery);
+      return res.json({ answer: llm.answer, source: llm.source, debug: { route: "subjects-fallback-llm" } });
     }
 
     /* ---------- students ---------- */
     if (intent === "students") {
       const nameToken = tokens.find(t => t.length > 2);
       if (!nameToken) return res.json({ answer: "Please include student name or USN.", source: "generic" });
-      const { data: studs } = await supabase.from("Students list").select("*").ilike("Name", `%${nameToken}%`).limit(20);
-      if (!studs || studs.length === 0) return res.json({ answer: "No matching student rows found.", source: "db-empty" });
-      const out = studs.map(s => `${s.Name} — USN: ${s.Usn} — Branch: ${s.Branch}`);
-      return res.json({ answer: out.join("\n"), source: "supabase-students" });
+      try {
+        const { data: studs } = await supabase.from("Students list").select("*").ilike("Name", `%${nameToken}%`).limit(20);
+        if (!studs || studs.length === 0) {
+          const llm = await callAnyLLM(effectiveQuery);
+          return res.json({ answer: llm.answer, source: llm.source, debug: { route: "students-fallback-llm" } });
+        }
+        const out = studs.map(s => `${s.Name} — USN: ${s.Usn} — Branch: ${s.Branch}`);
+        return res.json({ answer: out.join("\n"), source: "supabase-students" });
+      } catch (e) {
+        const llm = await callAnyLLM(effectiveQuery);
+        return res.json({ answer: llm.answer, source: llm.source, debug: { route: "students-exception-llm", exception: String(e) } });
+      }
     }
 
     /* ---------- branches ---------- */
     if (intent === "branches") {
-      const { data: br } = await supabase.from("branches").select("*").limit(50);
-      if (!br || br.length === 0) return res.json({ answer: "No branches found in DB.", source: "db-empty" });
-      const out = br.map(b => `${b.branch_code || ""} — ${b.branch_name || ""}`);
-      return res.json({ answer: out.join("\n"), source: "supabase-branches" });
+      try {
+        const { data: br } = await supabase.from("branches").select("*").limit(50);
+        if (!br || br.length === 0) {
+          const llm = await callAnyLLM(effectiveQuery);
+          return res.json({ answer: llm.answer, source: llm.source, debug: { route: "branches-fallback-llm" } });
+        }
+        const out = br.map(b => `${b.branch_code || ""} — ${b.branch_name || ""}`);
+        return res.json({ answer: out.join("\n"), source: "supabase-branches" });
+      } catch (e) {
+        const llm = await callAnyLLM(effectiveQuery);
+        return res.json({ answer: llm.answer, source: llm.source, debug: { route: "branches-exception-llm", exception: String(e) } });
+      }
     }
 
     /* ---------- people (faculty + staff) ---------- */
@@ -321,7 +400,11 @@ export default async function handler(req, res) {
       let rows = [];
       if (facRes.status === "fulfilled" && Array.isArray(facRes.value.data)) rows = rows.concat(facRes.value.data.map(r => ({ ...r, __table: "faculty_list" })));
       if (staffRes.status === "fulfilled" && Array.isArray(staffRes.value.data)) rows = rows.concat(staffRes.value.data.map(r => ({ ...r, __table: "staff" })));
-      if (!rows.length) return res.json({ answer: "No people rows found in DB.", source: "db-empty" });
+      if (!rows.length) {
+        // no people rows in DB - fallback to LLM (useful for "who is indian pm"-type Qs)
+        const llm = await callAnyLLM(effectiveQuery);
+        return res.json({ answer: llm.answer, source: llm.source, debug: { route: "people-db-empty-fallback-llm" } });
+      }
 
       // score rows with improved fuzzy
       const scored = rows.map(r => ({ row: r, score: scorePersonRow(r, tokens) }));
@@ -329,7 +412,7 @@ export default async function handler(req, res) {
       const best = scored[0];
       const second = scored[1] || { score: 0 };
 
-      // thresholds tuned: higher requirement for ambiguity safety
+      // thresholds tuned for safety
       const THRESH = 6;
       const MIN_RATIO = 1.15;
 
@@ -349,18 +432,30 @@ export default async function handler(req, res) {
         return res.json({ answer, source: sourceLabel, debug: { top_score: best.score, second_score: second.score } });
       }
 
-      // suggestions list
+      // if no single confident match, but suggestions exist, return suggestions
       const suggestions = scored.slice(0,8).filter(s => s.score > 0).map(s => ({ name: s.row.name, score: s.score, table: s.row.__table }));
       if (suggestions.length) {
+        // But also attempt LLM fallback for general-knowledge questions (user might have asked something outside DB)
+        const llm = await callAnyLLM(effectiveQuery);
+        // prefer LLM if it returned a meaningful answer; otherwise return suggestions
+        if (llm && llm.answer && !/(LLM not configured|No answer)/i.test(llm.answer)) {
+          return res.json({ answer: llm.answer, source: llm.source, debug: { route: "people-suggestions-llm-preferred", suggestions } });
+        }
         const sugText = suggestions.map(s => `${s.name} (${s.table}) — score ${s.score}`).join("\n");
         return res.json({ answer: `No single confident match. Top suggestions:\n${sugText}`, source: "supabase-suggestions" });
+      }
+
+      // final fallback to LLM
+      const llm = await callAnyLLM(effectiveQuery);
+      if (llm && llm.answer && !/(LLM not configured|No answer)/i.test(llm.answer)) {
+        return res.json({ answer: llm.answer, source: llm.source, debug: { route: "people-final-llm-fallback" } });
       }
       return res.json({ answer: "No matching person found in DB.", source: "db-empty" });
     }
   } catch (err) {
     // fallback to LLM on unexpected DB exception
     try {
-      const llm = await callGemini(effectiveQuery);
+      const llm = await callAnyLLM(effectiveQuery);
       return res.json({ answer: llm.answer || String(err), source: llm.source || "llm", debug: { exception: String(err) } });
     } catch (e2) {
       return res.json({ answer: String(err), source: "error", debug: { exception: String(err) } });
