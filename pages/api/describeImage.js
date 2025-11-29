@@ -1,36 +1,21 @@
 // pages/api/describeImage.js
-// Expects JSON POST: { image: "<base64 or dataURL>", filename?: "photo.png" }
-// Requires env: GEMINI_API_KEY, optional GEMINI_API_URL
+// Accepts multipart/form-data with a "file" field.
+// Example client: `formData.append('file', fileFromInput)`
+// Requires env: GEMINI_API_KEY (or set GEMINI_API_URL if custom)
 //
-// Notes:
-// - Next.js default body parser limit may be small. We increase it below via `config`.
-// - This endpoint returns detailed debug info on failure to help you troubleshoot.
+// Install dependency: formidable (add to package.json dependencies)
+
+import fs from "fs";
+import { promisify } from "util";
+import formidable from "formidable";
+
+const readFile = promisify(fs.readFile);
 
 export const config = {
   api: {
-    bodyParser: {
-      // Increase limit to allow base64 images up to ~8MB
-      sizeLimit: "8mb",
-    },
+    bodyParser: false, // we use formidable to parse multipart
   },
 };
-
-function stripDataUrl(dataUrl) {
-  // dataUrl = "data:image/png;base64,AAAA..." or raw base64
-  if (typeof dataUrl !== "string") return null;
-  const commaIdx = dataUrl.indexOf(",");
-  if (commaIdx >= 0 && dataUrl.slice(0, commaIdx).includes("base64")) {
-    return dataUrl.slice(commaIdx + 1);
-  }
-  // maybe already raw base64
-  return dataUrl;
-}
-
-function approxBytesFromBase64(b64) {
-  // approximate bytes of base64 string
-  if (!b64) return 0;
-  return Math.ceil((b64.length * 3) / 4);
-}
 
 function safeParseJSON(s) {
   try {
@@ -40,131 +25,144 @@ function safeParseJSON(s) {
   }
 }
 
+function mimeFromFilename(filename = "") {
+  filename = filename.toLowerCase();
+  if (filename.endsWith(".png")) return "image/png";
+  if (filename.endsWith(".webp")) return "image/webp";
+  return "image/jpeg";
+}
+
+async function callGeminiWithInlineImage({ b64data, mimeType, filename, geminiUrl, geminiKey }) {
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          {
+            inlineData: {
+              mimeType,
+              data: b64data,
+            },
+          },
+          {
+            text:
+              "You are CollegeGPT for HSIT. Describe the image in 2-3 short sentences. " +
+              "List main visible objects and any readable text. Do NOT guess identities, names, or personal info. " +
+              "If the image is unreadable or no text is present, say so.",
+          },
+        ],
+      },
+    ],
+  };
+
+  const endpoint = `${geminiUrl}?key=${encodeURIComponent(geminiKey)}`;
+  const r = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requestBody),
+  });
+
+  const rawText = await r.text();
+  if (!r.ok) {
+    let parsed = safeParseJSON(rawText);
+    return { ok: false, status: r.status, details: parsed || rawText.slice(0, 8000), endpoint };
+  }
+
+  const json = safeParseJSON(rawText);
+  if (!json) {
+    return { ok: false, status: 200, error: "Failed to parse Gemini JSON", raw: rawText.slice(0, 8000) };
+  }
+
+  const ansCandidates = [
+    json?.candidates?.[0]?.content?.[0]?.text,
+    (json?.candidates?.[0]?.content?.parts || []).find((p) => p.text)?.text,
+    json?.output?.[0]?.content?.[0]?.text,
+    json?.output?.[0]?.content?.[0]?.parts?.find((p) => p.text)?.text,
+  ];
+
+  const answer = ansCandidates.find((x) => typeof x === "string" && x.trim().length > 0) || null;
+  return { ok: true, answer, rawJson: json };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST allowed" });
 
-  try {
-    const body = req.body || {};
-    const raw = body.image || body.imageBase64 || null;
-    const filename = body.filename || "uploaded-image";
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+  const GEMINI_API_URL =
+    process.env.GEMINI_API_URL ||
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
-    if (!raw || typeof raw !== "string") {
-      return res.status(400).json({ error: "image or imageBase64 required in JSON body" });
+  if (!GEMINI_API_KEY) {
+    return res.status(500).json({ error: "GEMINI_API_KEY missing in environment" });
+  }
+
+  try {
+    // parse multipart form
+    const form = new formidable.IncomingForm({ maxFileSize: 8 * 1024 * 1024 }); // 8MB per-file cap
+    const parsed = await new Promise((resolve, reject) => {
+      form.parse(req, (err, fields, files) => {
+        if (err) return reject(err);
+        resolve({ fields, files });
+      });
+    });
+
+    const files = parsed.files || {};
+    const fileKey = files.file ? "file" : Object.keys(files)[0];
+    if (!fileKey) {
+      return res.status(400).json({ error: 'No file uploaded. Use field name "file" in form-data.' });
     }
 
-    const b64 = stripDataUrl(raw);
-    if (!b64) return res.status(400).json({ error: "Failed to parse base64 image data" });
+    const file = files[fileKey];
+    const filepath = file.filepath || file.path || file.file;
+    if (!filepath) {
+      return res.status(400).json({ error: "Uploaded file path not found" });
+    }
 
-    const approxBytes = approxBytesFromBase64(b64);
-    const MAX_BYTES = 6 * 1024 * 1024; // 6 MB limit (server + Gemini recommended safety)
+    const buf = await readFile(filepath);
+    const approxBytes = buf.length;
+    const MAX_BYTES = 6 * 1024 * 1024; // 6MB recommended
     if (approxBytes > MAX_BYTES) {
       return res.status(413).json({
         error: "Image too large",
         approxBytes,
-        note: `Max allowed ${MAX_BYTES} bytes. Consider resizing/compressing image on client before upload.`,
+        note: `Max allowed ${MAX_BYTES} bytes. Please resize/compress image on client.`,
       });
     }
 
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    const GEMINI_API_URL =
-      process.env.GEMINI_API_URL ||
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+    const filename = file.originalFilename || file.name || "upload.jpg";
+    const mimeType = file.mimetype || mimeFromFilename(filename) || "image/jpeg";
+    const b64data = buf.toString("base64");
 
-    if (!GEMINI_API_KEY) {
-      return res.status(500).json({ error: "GEMINI_API_KEY missing in environment" });
-    }
-
-    const mimeType = filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
-
-    // Build request body as per Google Generative Language multimodal inlineData format.
-    // Keep the textual instruction short and explicit not to hallucinate identities.
-    const requestBody = {
-      contents: [
-        {
-          parts: [
-            {
-              inlineData: {
-                mimeType,
-                data: b64,
-              },
-            },
-            {
-              text:
-                "You are CollegeGPT for HSIT. Describe the image in 2-3 short sentences. " +
-                "List main visible objects and any readable text. Do NOT guess identities, names, or personal info. " +
-                "If the image is unreadable or no text is present, say so.",
-            },
-          ],
-        },
-      ],
-    };
-
-    const endpoint = `${GEMINI_API_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`;
-
-    const r = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
+    const geminiResp = await callGeminiWithInlineImage({
+      b64data,
+      mimeType,
+      filename,
+      geminiUrl: GEMINI_API_URL,
+      geminiKey: GEMINI_API_KEY,
     });
 
-    const rawText = await r.text();
-    // If non-OK, return Gemini raw response for debugging
-    if (!r.ok) {
-      let parsed = safeParseJSON(rawText);
-      return res.status(r.status).json({
-        error: `Gemini returned ${r.status}`,
-        details: parsed || rawText.slice(0, 8000),
-        debug: {
-          endpoint,
-          approxBytes,
-          mimeType,
-          bodyPreview: {
-            contents0_parts0_inlineData_len: requestBody.contents?.[0]?.parts?.[0]?.inlineData?.data?.length || 0,
-            textInstruction: requestBody.contents?.[0]?.parts?.[1]?.text?.slice?.(0, 200),
-          },
-        },
-      });
-    }
-
-    // Parse JSON safely
-    const json = safeParseJSON(rawText);
-    if (!json) {
+    if (!geminiResp.ok) {
       return res.status(500).json({
-        error: "Failed to parse Gemini JSON",
-        raw: rawText.slice(0, 8000),
+        error: "Gemini error",
+        details: geminiResp.details || geminiResp,
+        endpoint: geminiResp.endpoint,
+        debug: { mimeType, filename, approxBytes },
       });
     }
 
-    // Try several possible response paths (different versions can differ)
-    const ansCandidates = [
-      json?.candidates?.[0]?.content?.[0]?.text,
-      // older/newer shape
-      (json?.candidates?.[0]?.content?.parts || []).find((p) => p.text)?.text,
-      json?.output?.[0]?.content?.[0]?.text,
-      json?.output?.[0]?.content?.[0]?.parts?.find((p) => p.text)?.text,
-      json?.candidates?.[0]?.content?.[0]?.imageText, // hypothetical
-    ];
-
-    const ans = ansCandidates.find((x) => typeof x === "string" && x.trim().length > 0) || null;
-
-    if (!ans) {
-      // no text answer found — return raw structure for debugging (trimmed)
+    if (!geminiResp.answer) {
       return res.status(200).json({
         ok: true,
         answer: null,
         note: "No text answer found in Gemini response",
-        gemini: {
-          keys: Object.keys(json).slice(0, 20),
-          snippet: JSON.stringify(json).slice(0, 8000),
-        },
-        debug: { approxBytes, mimeType },
+        geminiRawKeys: Object.keys(geminiResp.rawJson).slice(0, 20),
+        geminiSnippet: JSON.stringify(geminiResp.rawJson).slice(0, 8000),
+        debug: { mimeType, filename, approxBytes },
       });
     }
 
-    // success
-    return res.json({ ok: true, answer: ans, debug: { approxBytes, mimeType } });
+    return res.status(200).json({ ok: true, answer: geminiResp.answer, debug: { mimeType, filename, approxBytes } });
   } catch (err) {
-    console.error("describeImage error:", err);
+    console.error("describeImage multipart error:", err);
     return res.status(500).json({ error: String(err) });
   }
 }
