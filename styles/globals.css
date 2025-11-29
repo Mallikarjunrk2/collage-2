@@ -1,232 +1,107 @@
-/* styles/globals.css
-   Full CSS for the updated UI (hero + chat styling + overrides)
-   Replace your existing globals.css with this content.
-*/
-
-/* Tailwind layers — keep if you use Tailwind in the project */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Reset small things for consistency */
-html, body, #__next {
-  height: 100%;
-  margin: 0;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  background: #071024;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
 /* -------------------------------
-   Variables and general tokens
+   Subtle moving background + glass sheen
+   Append this to the end of styles/globals.css
    ------------------------------- */
+
+/* Tunable motion variables */
 :root{
-  --bg-page: #071024;
-  --panel: #0f1720;
-  --bubble-user: #7c3aed;
-  --bubble-bot: rgba(29,37,49,0.92);
-  --muted: #94a3b8;
-  --accent: #f59e0b;
-  --glass-border: rgba(255,255,255,0.05);
-  --shadow-soft: 0 6px 18px rgba(2,6,23,0.55);
-  --radius-lg: 14px;
+  --motion-duration: 35s;    /* how slow the pan is (bigger = slower) */
+  --sheen-duration: 3.6s;    /* sheen speed on glass */
+  --movement-opacity: 0.045; /* overall opacity of animated layer */
 }
 
-/* -------------------------------
-   Hero / Landing style (top)
-   ------------------------------- */
-
-.hero-wrapper {
-  background: linear-gradient(180deg, #071026 0%, #07101a 100%);
-  border-radius: 14px;
-  padding: 28px;
-  margin-bottom: 18px;
-  box-shadow: 0 18px 60px rgba(2,6,23,0.6);
+/* background movement layer that sits behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0; /* keep behind app */
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.12), transparent 8%),
+    radial-gradient(1000px 500px at 80% 80%, rgba(236,72,153,0.08), transparent 10%),
+    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0));
+  opacity: var(--movement-opacity);
+  transform: translateZ(0);
+  filter: blur(32px) saturate(120%);
+  mix-blend-mode: screen;
+  animation: bg-pan var(--motion-duration) linear infinite;
 }
 
-.hero-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 12px;
+/* gentle positional animation for background */
+@keyframes bg-pan {
+  0%   { transform: translate3d(-2%, -1%, 0) scale(1.02) }
+  50%  { transform: translate3d(2%, 1.5%, 0) scale(1.03) }
+  100% { transform: translate3d(-2%, -1%, 0) scale(1.02) }
 }
 
-.hero-top {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.brand {
-  font-weight: 700;
-  font-size: 20px;
-  color: #fff;
-}
-.brand-sub { color: #ff9a3c; }
-
-.cta-primary {
-  background: linear-gradient(180deg, #ff7b1a, #ff9a3c);
-  color: #fff;
-  padding: 10px 16px;
-  border-radius: 12px;
-  border: none;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 12px 30px rgba(255,122,53,0.16);
-}
-
-.hero-title {
-  font-size: 34px;
-  line-height: 1.05;
-  margin: 6px 0 8px 0;
-  color: #f8fafc;
-  font-weight: 800;
-}
-.hero-title .accent { color: var(--accent); }
-
-.hero-sub {
-  color: var(--muted);
-  margin-bottom: 18px;
-  font-size: 14px;
-}
-
-/* hero input box (centered tools + input) */
-.hero-input {
-  display: flex;
-  gap: 12px;
-  align-items: center;
+/* glass-panel upgrade: stronger backdrop and animated sheen */
+.glass-panel {
+  position: relative; /* for sheen pseudo-element */
   background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-  border: 1px solid rgba(255,255,255,0.04);
-  padding: 12px;
-  border-radius: 14px;
-  align-items: center;
-}
-
-.hero-input-left {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-width: 120px;
-}
-
-.icon-btn {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.04);
-  padding: 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  color: #fff;
-  font-weight: 700;
-}
-
-.hero-search {
-  flex: 1;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: none;
-  outline: none;
-  background: rgba(0,0,0,0.25);
-  color: #e6eef6;
-  font-size: 15px;
-}
-
-.hero-input-right {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.send-btn-hero {
-  background: linear-gradient(180deg,#7c3aed,#5b21b6);
-  border-radius: 999px;
-  padding: 10px 14px;
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.upload-hero {
-  background: rgba(255,255,255,0.03);
-  border-radius: 10px;
-  padding: 8px 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border: 1px solid rgba(255,255,255,0.04);
-  color: #fff;
-}
-
-/* -------------------------------
-   Chat panel and message bubbles
-   ------------------------------- */
-
-.flex-1.overflow-auto.bg-[#0f1720] {
-  /* ensure the panel is visually lifted */
-  background: linear-gradient(180deg, rgba(16,22,28,0.96), rgba(8,12,18,0.9));
-  border-radius: 12px;
-  padding: 18px;
-  min-height: 380px;
-}
-
-/* bot bubble: glassy card */
-.bg-gray-800.border {
-  background: linear-gradient(180deg, rgba(30,38,48,0.95), rgba(20,28,36,0.9));
   border: 1px solid var(--glass-border);
-  box-shadow: none;
-  border-radius: var(--radius-lg);
-  padding: 14px !important;
-  color: #e6eef6;
-  line-height: 1.45;
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  box-shadow: 0 12px 36px rgba(2,6,23,0.55);
+  overflow: hidden;
 }
 
-/* user bubble */
-.bg-purple-700 {
-  background: linear-gradient(180deg, var(--bubble-user), #6d28d9 70%);
-  border-radius: 18px;
-  padding: 14px !important;
-  color: #fff;
-  box-shadow: 0 8px 20px rgba(124,58,237,0.12);
+/* sliding sheen (subtle moving light) */
+.glass-panel::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -50%;
+  width: 160%;
+  height: 160%;
+  transform: rotate(-16deg);
+  background: linear-gradient(90deg, rgba(255,255,255,0.00) 0%, rgba(255,255,255,0.06) 48%, rgba(255,255,255,0.00) 100%);
+  opacity: 0.55;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  animation: sheen var(--sheen-duration) ease-in-out infinite;
 }
 
-/* times and small meta */
-.text-xs.text-gray-500,
-.text-xs.text-gray-400 {
-  color: var(--muted) !important;
-  font-size: 12px;
+/* sheen motion */
+@keyframes sheen {
+  0%   { transform: translateX(-40%) rotate(-16deg); opacity: 0.25; }
+  50%  { transform: translateX(10%) rotate(-16deg); opacity: 0.55; }
+  100% { transform: translateX(110%) rotate(-16deg); opacity: 0.25; }
 }
 
-/* image preview styling inside bubble */
-img[alt="uploaded image"] {
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.03);
-  max-width: 520px;
-  display: block;
+/* make user bubble sheen slightly stronger to feel 'lit' */
+.bg-purple-700::after {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0) 100%);
+  opacity: 0.6;
+  animation-duration: 2.8s;
 }
 
-/* small json/code blocks inside bot replies */
-div[style*="white-space: pre-wrap"] pre,
-div[style*="white-space: pre-wrap"] code {
-  background: rgba(0,0,0,0.12);
-  padding: 10px;
-  border-radius: 8px;
-  overflow-x: auto;
+/* reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-duration: 1s; --sheen-duration: 1s; --movement-opacity: 0.02; }
+  body::before { animation: none; }
+  .glass-panel::after, .bg-purple-700::after { animation: none; opacity: 0.08; }
 }
 
-/* responsive tweaks */
-@media (max-width: 880px) {
-  .hero-title { font-size: 26px; }
-  .hero-inner { padding: 8px; }
-  .hero-input-left { min-width: 90px; }
-  .max-w-4xl { padding: 0 12px; }
+/* make sure app content sits above the background layer */
+#___app, #__next, .app-root, .hero-wrapper {
+  position: relative;
+  z-index: 1;
 }
 
-/* small utilities to ensure contrast on dark backgrounds */
-button, input, label {
-  font-family: inherit;
+/* optional: tiny parallax push for hero to feel separate
+   (applies only on larger screens so mobile stays simple) */
+@media (min-width: 900px) {
+  .hero-wrapper {
+    transform: translateZ(0);
+    will-change: transform;
+    transition: transform 0.45s cubic-bezier(.2,.9,.3,1);
+  }
+  /* gently nudge hero on hover to hint movement (micro-interaction) */
+  .hero-wrapper:hover { transform: translateY(-4px) translateZ(0); }
 }
 
-/* end of globals.css */
+/* safety: ensure panels remain readable even when background is bright */
+.glass-panel, .hero-wrapper, .flex-1.overflow-auto.bg-[#0f1720] {
+  isolation: isolate;
+}
