@@ -1,65 +1,290 @@
-/* --- Mobile: keep Upload | Input | Send in one row, with Send pinned to right ---
-   Safe to append at end of styles/globals.css
-   This does not change any JS or markup — only style on small screens.
+/* styles/globals.css
+   Full CSS for the updated UI (hero + chat styling + overrides)
+   Replace your existing globals.css with this content.
 */
+
+/* Tailwind layers — keep if you use Tailwind in the project */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reset small things for consistency */
+html, body, #__next {
+  height: 100%;
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: #071024;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* -------------------------------
+   Variables and general tokens
+   ------------------------------- */
+:root{
+  --bg-page: #071024;
+  --panel: #0f1720;
+  --bubble-user: #7c3aed;
+  --bubble-bot: rgba(29,37,49,0.92);
+  --muted: #94a3b8;
+  --accent: #f59e0b;
+  --glass-border: rgba(255,255,255,0.05);
+  --shadow-soft: 0 6px 18px rgba(2,6,23,0.55);
+  --radius-lg: 14px;
+}
+
+/* -------------------------------
+   Hero / Landing style (top)
+   ------------------------------- */
+
+.hero-wrapper {
+  background: linear-gradient(180deg, #071026 0%, #07101a 100%);
+  border-radius: 14px;
+  padding: 28px;
+  margin-bottom: 18px;
+  box-shadow: 0 18px 60px rgba(2,6,23,0.6);
+}
+
+.hero-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+.hero-top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 20px;
+  color: #fff;
+}
+.brand-sub { color: #ff9a3c; }
+
+.cta-primary {
+  background: linear-gradient(180deg, #ff7b1a, #ff9a3c);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(255,122,53,0.16);
+}
+
+.hero-title {
+  font-size: 34px;
+  line-height: 1.05;
+  margin: 6px 0 8px 0;
+  color: #f8fafc;
+  font-weight: 800;
+}
+.hero-title .accent { color: var(--accent); }
+
+.hero-sub {
+  color: var(--muted);
+  margin-bottom: 18px;
+  font-size: 14px;
+}
+
+/* hero input box (centered tools + input) */
+.hero-input {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 12px;
+  border-radius: 14px;
+  align-items: center;
+}
+
+.hero-input-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 120px;
+}
+
+.icon-btn {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #fff;
+  font-weight: 700;
+}
+
+.hero-search {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  background: rgba(0,0,0,0.25);
+  color: #e6eef6;
+  font-size: 15px;
+}
+
+.hero-input-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.send-btn-hero {
+  background: linear-gradient(180deg,#7c3aed,#5b21b6);
+  border-radius: 999px;
+  padding: 10px 14px;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.upload-hero {
+  background: rgba(255,255,255,0.03);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.04);
+  color: #fff;
+}
+
+/* -------------------------------
+   Chat panel and message bubbles
+   ------------------------------- */
+
+.flex-1.overflow-auto.bg-[#0f1720] {
+  /* ensure the panel is visually lifted */
+  background: linear-gradient(180deg, rgba(16,22,28,0.96), rgba(8,12,18,0.9));
+  border-radius: 12px;
+  padding: 18px;
+  min-height: 380px;
+}
+
+/* bot bubble: glassy card */
+.bg-gray-800.border {
+  background: linear-gradient(180deg, rgba(30,38,48,0.95), rgba(20,28,36,0.9));
+  border: 1px solid var(--glass-border);
+  box-shadow: none;
+  border-radius: var(--radius-lg);
+  padding: 14px !important;
+  color: #e6eef6;
+  line-height: 1.45;
+}
+
+/* user bubble */
+.bg-purple-700 {
+  background: linear-gradient(180deg, var(--bubble-user), #6d28d9 70%);
+  border-radius: 18px;
+  padding: 14px !important;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(124,58,237,0.12);
+}
+
+/* times and small meta */
+.text-xs.text-gray-500,
+.text-xs.text-gray-400 {
+  color: var(--muted) !important;
+  font-size: 12px;
+}
+
+/* image preview styling inside bubble */
+img[alt="uploaded image"] {
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.03);
+  max-width: 520px;
+  display: block;
+}
+
+/* small json/code blocks inside bot replies */
+div[style*="white-space: pre-wrap"] pre,
+div[style*="white-space: pre-wrap"] code {
+  background: rgba(0,0,0,0.12);
+  padding: 10px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+/* responsive tweaks */
+@media (max-width: 880px) {
+  .hero-title { font-size: 26px; }
+  .hero-inner { padding: 8px; }
+  .hero-input-left { min-width: 90px; }
+  .max-w-4xl { padding: 0 12px; }
+}
+
+/* small utilities to ensure contrast on dark backgrounds */
+button, input, label {
+  font-family: inherit;
+}
+/* Mobile fixes for rounded input bar (paste at end of globals.css) */
 @media (max-width: 640px) {
+
   /* target the input-row created in pages/index.js */
   .mt-4 > .flex.items-center,
   .mt-4 > .flex.items-center.gap-3 {
     display: flex !important;
-    flex-wrap: nowrap !important;       /* keep single row */
-    align-items: center !important;
+    flex-wrap: wrap !important;
     gap: 8px !important;
     padding: 10px !important;
+    align-items: center !important;
+    border-radius: 18px !important;
   }
 
-  /* Upload label: fixed-size, left side, tappable */
+  /* Upload label: keep compact but tappable */
   .mt-4 > .flex.items-center label.cursor-pointer,
-  .mt-4 > .flex.items-center .upload-hero {
+  .mt-4 > .flex.items-center .upload-hero,
+  .mt-4 > .flex.items-center .label {
     flex: 0 0 auto !important;
-    min-width: 48px !important;
+    min-width: 48px;
     padding: 8px 10px !important;
     font-size: 14px !important;
     border-radius: 12px !important;
   }
 
-  /* Main input: grow to fill remaining space, allow shrink (min-width:0 is crucial) */
+  /* Main input: allow shrink and take available space */
   .mt-4 > .flex.items-center input.flex-1,
   .mt-4 > .flex.items-center input.hero-search {
     flex: 1 1 auto !important;
-    min-width: 0 !important;            /* allow input to shrink properly */
+    min-width: 0 !important; /* very important: allows shrink on small screens */
     padding: 10px 12px !important;
     font-size: 14px !important;
-    height: 40px !important;
-    line-height: 1.2 !important;
-    overflow: hidden !important;
   }
 
-  /* Make sure the input text is not hidden under the send button */
-  .mt-4 > .flex.items-center input.flex-1 { padding-right: 12px !important; }
-
-  /* Send button: fixed-size, stays on the right */
+  /* Send button: keep visible and small */
   .mt-4 > .flex.items-center button.px-5,
   .mt-4 > .flex.items-center .send-btn-hero,
   .mt-4 > .flex.items-center button {
     flex: 0 0 auto !important;
-    margin-left: 6px !important;
     padding: 8px 12px !important;
     font-size: 14px !important;
     border-radius: 999px !important;
-    white-space: nowrap !important;
+    margin-left: 4px !important;
     z-index: 5;
   }
 
-  /* Ensure rounded container doesn't become too tall */
+  /* If the rounded container is too tall, reduce radius on mobile */
   .mt-4 > .flex.items-center {
     border-radius: 14px !important;
   }
 
-  /* Prevent image previews from overflowing */
+  /* Prevent images inside bubbles from overflowing on small devices */
   .max-w-xl img,
   img[alt="uploaded image"] {
     max-width: 100% !important;
     height: auto !important;
   }
 }
+
+/* end of globals.css */
