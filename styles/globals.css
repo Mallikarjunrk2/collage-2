@@ -228,5 +228,63 @@ div[style*="white-space: pre-wrap"] code {
 button, input, label {
   font-family: inherit;
 }
+/* Mobile fixes for rounded input bar (paste at end of globals.css) */
+@media (max-width: 640px) {
+
+  /* target the input-row created in pages/index.js */
+  .mt-4 > .flex.items-center,
+  .mt-4 > .flex.items-center.gap-3 {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 10px !important;
+    align-items: center !important;
+    border-radius: 18px !important;
+  }
+
+  /* Upload label: keep compact but tappable */
+  .mt-4 > .flex.items-center label.cursor-pointer,
+  .mt-4 > .flex.items-center .upload-hero,
+  .mt-4 > .flex.items-center .label {
+    flex: 0 0 auto !important;
+    min-width: 48px;
+    padding: 8px 10px !important;
+    font-size: 14px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Main input: allow shrink and take available space */
+  .mt-4 > .flex.items-center input.flex-1,
+  .mt-4 > .flex.items-center input.hero-search {
+    flex: 1 1 auto !important;
+    min-width: 0 !important; /* very important: allows shrink on small screens */
+    padding: 10px 12px !important;
+    font-size: 14px !important;
+  }
+
+  /* Send button: keep visible and small */
+  .mt-4 > .flex.items-center button.px-5,
+  .mt-4 > .flex.items-center .send-btn-hero,
+  .mt-4 > .flex.items-center button {
+    flex: 0 0 auto !important;
+    padding: 8px 12px !important;
+    font-size: 14px !important;
+    border-radius: 999px !important;
+    margin-left: 4px !important;
+    z-index: 5;
+  }
+
+  /* If the rounded container is too tall, reduce radius on mobile */
+  .mt-4 > .flex.items-center {
+    border-radius: 14px !important;
+  }
+
+  /* Prevent images inside bubbles from overflowing on small devices */
+  .max-w-xl img,
+  img[alt="uploaded image"] {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+}
 
 /* end of globals.css */
