@@ -3,7 +3,7 @@
 // Example client: `formData.append('file', fileFromInput)`
 // Requires env: GEMINI_API_KEY (or set GEMINI_API_URL if custom)
 //
-// Install dependency: formidable (add to package.json dependencies)
+// Note: Vercel will install "formidable" during deploy because it's in package.json.
 
 import fs from "fs";
 import { promisify } from "util";
@@ -13,7 +13,7 @@ const readFile = promisify(fs.readFile);
 
 export const config = {
   api: {
-    bodyParser: false, // we use formidable to parse multipart
+    bodyParser: false, // use formidable to parse multipart
   },
 };
 
