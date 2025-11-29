@@ -1,12 +1,12 @@
 // pages/api/describeImage_alt.js
-// Accepts JSON POST: { image: "<dataURL or base64>" , filename?: "photo.jpg" }
-// No extra dependencies required. Increase body parser size to accept compressed images.
-// Uses OPENAI_API_KEY (preferred) or GEMINI_API_KEY (fallback).
+// Improved no-deps image description endpoint.
+// Accepts JSON POST: { image: "<dataURL or base64>", filename?: "photo.jpg" }
+// Prefers OPENAI_API_KEY if present, otherwise GEMINI_API_KEY.
+// Returns structured answer: short summary + bullet list of visible objects + readable text (if any).
 
 export const config = {
   api: {
     bodyParser: {
-      // allow up to ~12MB JSON body (base64 takes more bytes)
       sizeLimit: "12mb",
     },
   },
@@ -16,7 +16,6 @@ function stripDataUrl(dataUrl) {
   if (typeof dataUrl !== "string") return null;
   const idx = dataUrl.indexOf(",");
   if (idx >= 0 && dataUrl.slice(0, idx).includes("base64")) return dataUrl.slice(idx + 1);
-  // maybe raw base64 already
   return dataUrl;
 }
 
@@ -24,60 +23,87 @@ function safeParseJSON(s) {
   try { return JSON.parse(s); } catch (e) { return null; }
 }
 
-async function callGemini(b64, mimeType, filename) {
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  const GEMINI_API_URL = process.env.GEMINI_API_URL || "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
-  if (!GEMINI_API_KEY) return { ok: false, error: "GEMINI_API_KEY not configured" };
+async function callOpenAIWithPrompt(prompt) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return { ok: false, error: "OPENAI_API_KEY not configured" };
 
-  const requestBody = {
-    contents: [
-      {
-        parts: [
-          { inlineData: { mimeType, data: b64 } },
-          { text: "You are CollegeGPT for HSIT. Describe the image in 2-3 short sentences. List main visible objects and any readable text. Do NOT identify people." }
-        ]
-      }
-    ]
+  const payload = {
+    model: "gpt-4o-mini", // adjust if you prefer another model
+    messages: [
+      { role: "system", content: "You are an assistant that describes images precisely and conservatively." },
+      { role: "user", content: prompt },
+    ],
+    max_tokens: 700,
+    temperature: 0.0,
   };
 
-  const endpoint = `${GEMINI_API_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`;
-  const r = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody) });
-  const text = await r.text();
-  if (!r.ok) return { ok: false, error: `gemini ${r.status}`, details: safeParseJSON(text) || text.slice(0,3000) };
-  const json = safeParseJSON(text);
-  const candidate = json?.candidates?.[0]?.content?.[0]?.text || (json?.output?.[0]?.content?.[0]?.text) || null;
-  return { ok: true, answer: candidate || null, raw: json };
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const txt = await r.text();
+  if (!r.ok) return { ok: false, error: `openai ${r.status}`, details: safeParseJSON(txt) || txt.slice(0,3000) };
+  const json = safeParseJSON(txt);
+  const content = json?.choices?.[0]?.message?.content || null;
+  return { ok: true, answer: content, raw: json };
 }
 
-async function callOpenAI(b64, mimeType, filename) {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_API_KEY) return { ok: false, error: "OPENAI_API_KEY not configured" };
+async function callGeminiWithPrompt(endpointKey, prompt) {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const geminiUrl = process.env.GEMINI_API_URL || "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  if (!geminiKey) return { ok: false, error: "GEMINI_API_KEY not configured" };
 
-  // Use Chat Completions with image in system message as data URL — some deployments support it.
-  // Keep conservative to avoid depending on exact OpenAI multimodal shapes.
-  try {
-    const payload = {
-      model: "gpt-4o-mini", // fallback; change if you prefer another
-      messages: [
-        { role: "system", content: "You are CollegeGPT for HSIT. Describe images concisely; do not identify people." },
-        { role: "user", content: `Image (base64, mime=${mimeType}, filename=${filename}):\n\n[data begins]\n${b64}\n[data ends]\n\nPlease describe the image in 2-3 short sentences and list visible objects.` }
-      ],
-      max_tokens: 512,
-      temperature: 0.2,
-    };
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const txt = await resp.text();
-    if (!resp.ok) return { ok: false, error: `openai ${resp.status}`, details: safeParseJSON(txt) || txt.slice(0,3000) };
-    const json = safeParseJSON(txt);
-    const ans = json?.choices?.[0]?.message?.content || null;
-    return { ok: true, answer: ans, raw: json };
-  } catch (e) {
-    return { ok: false, error: String(e) };
-  }
+  const body = { contents: [{ parts: [{ text: prompt }] }] };
+  const r = await fetch(`${geminiUrl}?key=${encodeURIComponent(geminiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const txt = await r.text();
+  if (!r.ok) return { ok: false, error: `gemini ${r.status}`, details: safeParseJSON(txt) || txt.slice(0,3000) };
+  const json = safeParseJSON(txt);
+  // Try several places for text depending on API shape
+  const candidate = json?.candidates?.[0]?.content?.[0]?.text ||
+                    (json?.candidates?.[0]?.content?.parts || []).find(p => p.text)?.text ||
+                    json?.output?.[0]?.content?.[0]?.text ||
+                    null;
+  return { ok: true, answer: candidate, raw: json };
+}
+
+function buildPrimaryPrompt({ mimeType, filename }) {
+  // Strong, structured prompt asking for exactly what you want
+  return [
+    "You are a careful image description assistant. Be concise, factual, and do not invent identities.",
+    `Image meta: filename=${filename || "unknown"}, mime=${mimeType || "image/jpeg"}.`,
+    "Please produce output with these sections ONLY (separate each section with a blank line):",
+    "1) SHORT SUMMARY (2-3 sentences): Describe the overall scene and main purpose of the image.",
+    "2) VISIBLE OBJECTS (bullet list): List main visible objects and elements (e.g., 'person, car, newspaper, headline, table, logo').",
+    "3) READABLE TEXT (quoted): If any text appears in the image (headlines, captions, UI), copy it exactly and clearly mark where it was found. If none, write 'None'.",
+    "4) CONFIDENCE: Write one of [low, medium, high] indicating how confident you are in the above description.",
+    "Important: If the image is a screenshot of a webpage or article, try to extract the headline or visible headline-like text. Do NOT guess names or personal identities from faces.",
+    "Now, read the embedded base64 image provided below and respond using the requested sections.",
+    "[BEGIN IMAGE BASE64]",
+    "{BASE64}",
+    "[END IMAGE BASE64]"
+  ].join("\n");
+}
+
+function buildRetryPrompt({ mimeType, filename }) {
+  return [
+    "Retrying with explicit extraction focus.",
+    "Task: List all visible objects first (comma-separated), then list any textual content you can read from the image, then give a 1-2 sentence summary.",
+    `Image meta: filename=${filename || "unknown"}, mime=${mimeType || "image/jpeg"}.`,
+    "[BEGIN IMAGE BASE64]",
+    "{BASE64}",
+    "[END IMAGE BASE64]"
+  ].join("\n");
+}
+
+function normalizeModelText(s) {
+  if (!s) return "";
+  return String(s).trim();
 }
 
 export default async function handler(req, res) {
@@ -85,35 +111,80 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body || {};
-    let raw = body.image || null;
+    const raw = body.image || null;
     const filename = body.filename || "photo.jpg";
-
     if (!raw || typeof raw !== "string") return res.status(400).json({ ok: false, error: "image (dataURL or base64) required" });
 
     // strip dataURL prefix if present
     const b64 = stripDataUrl(raw);
     if (!b64) return res.status(400).json({ ok: false, error: "failed to parse base64 image" });
 
-    // approximate bytes and reject very large
+    // approximate size guard
     const approxBytes = Math.ceil((b64.length * 3) / 4);
-    const MAX = 10 * 1024 * 1024; // 10MB
+    const MAX = 12 * 1024 * 1024;
     if (approxBytes > MAX) return res.status(413).json({ ok: false, error: "Image too large", approxBytes });
 
     const mimeType = filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
 
-    // prefer OpenAI if configured (some users have better OpenAI access); else Gemini
+    // Build prompt with embedded base64 to allow multimodal LLMs to read inline image (Gemini supports inlineData shapes,
+    // OpenAI approach here simply includes b64 as text inside message — some deployments accept)
+    const primaryPrompt = buildPrimaryPrompt({ mimeType, filename }).replace("{BASE64}", b64);
+    const retryPrompt = buildRetryPrompt({ mimeType, filename }).replace("{BASE64}", b64);
+
+    // Prefer OpenAI if available
+    let modelResp = null;
     if (process.env.OPENAI_API_KEY) {
-      const r = await callOpenAI(b64, mimeType, filename);
-      if (r.ok) return res.json({ ok: true, answer: r.answer, source: "openai", debug: { approxBytes } });
-      // if OpenAI fails, fallback to Gemini
-      console.warn("openai failed, falling back:", r);
+      modelResp = await callOpenAIWithPrompt(primaryPrompt);
+      if (!modelResp.ok) {
+        // if OpenAI call failed, try Gemini as fallback
+        modelResp = await callGeminiWithPrompt("fallback", primaryPrompt);
+      }
+    } else {
+      // no OpenAI -> Gemini
+      modelResp = await callGeminiWithPrompt("primary", primaryPrompt);
     }
 
-    const g = await callGemini(b64, mimeType, filename);
-    if (!g.ok) return res.status(500).json({ ok: false, error: "LLM failed", details: g });
-    return res.json({ ok: true, answer: g.answer, source: "gemini", debug: { approxBytes } });
+    let answerText = normalizeModelText(modelResp?.answer);
+
+    // If first try produced no useful text, retry once with the retryPrompt
+    if (!answerText || answerText.length < 10) {
+      const retryResp = process.env.OPENAI_API_KEY
+        ? await callOpenAIWithPrompt(retryPrompt).catch(() => ({ ok: false }))
+        : await callGeminiWithPrompt("retry", retryPrompt).catch(() => ({ ok: false }));
+
+      if (retryResp && retryResp.ok) {
+        const candidate = normalizeModelText(retryResp.answer);
+        if (candidate && candidate.length > answerText.length) {
+          answerText = candidate;
+          modelResp = retryResp;
+        }
+      }
+    }
+
+    // Final sanitation: if still empty, return helpful debug
+    if (!answerText || answerText.length < 10) {
+      return res.status(200).json({
+        ok: true,
+        answer: null,
+        note: "Model returned empty or insufficient text. See raw for debugging.",
+        source: process.env.OPENAI_API_KEY ? "openai" : "gemini",
+        debug: {
+          approxBytes,
+          filename,
+          modelRaw: modelResp?.raw || null,
+        },
+      });
+    }
+
+    // Otherwise return the textual answer (structured as requested by prompt)
+    return res.status(200).json({
+      ok: true,
+      answer: answerText,
+      source: process.env.OPENAI_API_KEY ? "openai" : "gemini",
+      debug: { approxBytes, filename, modelRaw: modelResp?.raw || null },
+    });
   } catch (err) {
-    console.error("describeImage_alt error", err);
+    console.error("describeImage_alt error:", err);
     return res.status(500).json({ ok: false, error: String(err) });
   }
 }
