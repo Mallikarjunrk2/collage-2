@@ -164,12 +164,21 @@ html, body, #__next {
    Chat panel and message bubbles
    ------------------------------- */
 
+/* Panel (improved glass lift) */
 .flex-1.overflow-auto.bg-[#0f1720] {
   /* ensure the panel is visually lifted */
-  background: linear-gradient(180deg, rgba(16,22,28,0.96), rgba(8,12,18,0.9));
-  border-radius: 12px;
+  background: linear-gradient(
+    180deg,
+    rgba(15,23,42,0.86),
+    rgba(7,12,23,0.90)
+  );
+  border-radius: 24px;
   padding: 18px;
   min-height: 380px;
+  border: 1px solid rgba(148,163,184,0.28);
+  box-shadow: 0 22px 60px rgba(2,6,23,0.85);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
 }
 
 /* bot bubble: glassy card */
@@ -228,6 +237,52 @@ div[style*="white-space: pre-wrap"] code {
 button, input, label {
   font-family: inherit;
 }
+
+/* bottom input container: target common classes (works with typical tailwind markup) */
+.border.border-gray-700.rounded-full,
+.input-pill,
+.input-wrapper {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(15,23,42,0.96),
+    rgba(8,16,32,0.90)
+  );
+  border-color: rgba(148,163,184,0.45);
+  box-shadow: 0 18px 55px rgba(15,23,42,0.95);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(148,163,184,0.18);
+  border-radius: 9999px;
+}
+
+/* moving sheen on input pill */
+.border.border-gray-700.rounded-full::before,
+.input-pill::before,
+.input-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  background: linear-gradient(
+    120deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.10) 50%,
+    rgba(255,255,255,0) 100%
+  );
+  opacity: 0.65;
+  transform: translateX(-40%) rotate(-15deg);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  animation: inputSheen 4s ease-in-out infinite;
+}
+
+@keyframes inputSheen {
+  0%   { transform: translateX(-40%) rotate(-15deg); }
+  50%  { transform: translateX(15%)  rotate(-15deg); }
+  100% { transform: translateX(120%) rotate(-15deg); }
+}
+
 /* -------------------------------
    Subtle Ambient Background Motion
    ------------------------------- */
@@ -239,11 +294,12 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(900px 500px at 10% 20%, rgba(124,58,237,0.12), transparent 60%),
-    radial-gradient(900px 500px at 90% 80%, rgba(236,72,153,0.10), transparent 70%);
-  opacity: 0.05;
-  filter: blur(40px);
+    radial-gradient(1200px 600px at 10% 20%, rgba(124,58,237,0.14), transparent 60%),
+    radial-gradient(1000px 500px at 80% 80%, rgba(236,72,153,0.12), transparent 70%);
+  opacity: 0.16;       /* stronger so movement is noticeable */
+  filter: blur(60px);  /* stronger blur to smooth edges */
   animation: bgFloat 28s ease-in-out infinite alternate;
+  mix-blend-mode: screen;
 }
 
 @keyframes bgFloat {
@@ -278,7 +334,8 @@ body::before {
   );
   opacity: 0.35;
   transform: rotate(-20deg);
-  animation: glassShine 3.5s infinite ease-in-out;
+  animation: glassShine 3.2s infinite ease-in-out;
+  mix-blend-mode: overlay;
 }
 
 @keyframes glassShine {
@@ -287,10 +344,26 @@ body::before {
   100% { transform: translateX(120%) rotate(-20deg); }
 }
 
+/* make the user bubble sheen slightly stronger */
+.bg-purple-700::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  left: -60%;
+  width: 180%;
+  height: 180%;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.10) 50%, rgba(255,255,255,0) 100%);
+  opacity: 0.6;
+  transform: rotate(-18deg);
+  animation: glassShine 2.6s infinite ease-in-out;
+  pointer-events: none;
+}
+
 /* -------------------------------
    Message Fade-In
    ------------------------------- */
 
+/* ensure messages animate only when inserted (initially invisible) */
 .bg-gray-800.border,
 .bg-purple-700 {
   animation: msgFade 0.45s cubic-bezier(.2,.9,.3,1) forwards;
@@ -306,10 +379,32 @@ body::before {
    Input Bar – Soft Focus Glow
    ------------------------------- */
 
-input:focus {
+input:focus, textarea:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(124,58,237,0.25);
+  box-shadow: 0 0 0 4px rgba(124,58,237,0.28);
   transition: box-shadow .25s ease;
+}
+
+/* keyboard focus visible for clickable controls inside input pill */
+.border.border-gray-700.rounded-full button:focus,
+.input-pill button:focus,
+.input-wrapper button:focus {
+  outline: 3px solid rgba(124,58,237,0.22);
+  outline-offset: 2px;
+}
+
+/* -------------------------------
+   Reduced motion accessibility
+   ------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; opacity: 0.06; filter: blur(30px); }
+  .flex-1.overflow-auto.bg-[#0f1720]::after,
+  .bg-gray-800.border::after,
+  .bg-purple-700::after,
+  .border.border-gray-700.rounded-full::before,
+  .input-pill::before { animation: none; opacity: 0.08; }
+  .bg-gray-800.border, .bg-purple-700 { animation: none; opacity: 1; transform: none; }
 }
 
 /* end of globals.css */
