@@ -136,7 +136,7 @@ const aliasMap = {
   "kb manwad": "dr. k. b. manwade",
   manwade: "dr. k. b. manwade",
   manjaragi: "dr. s. v. manjaragi",
-  "s v manjaragi": "dr. s. v. manjaragi",
+  "S V MANJARAGI": "dr. s. v. manjaragi",
   "aruna daptardar": "mrs. aruna anil daptardar",
   "manoj chitale": "manojkumar a chitale",
   "shruti kumbar": "prof. shruti kumbar",
