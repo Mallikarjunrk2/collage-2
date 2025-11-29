@@ -1,36 +1,29 @@
 // pages/api/describeImage.js
-// Expects JSON POST: { image: "<base64 or dataURL>", filename?: "file.png" }
-// or: { imageBase64: "<base64 or dataURL>", filename?: "file.png" }
-// Requires Vercel env: GEMINI_API_KEY (API key) and optional GEMINI_API_URL
+// Single-file image describe handler.
+// Expects JSON POST: { image: "<base64 OR dataURL>", filename?: "photo.png" }
+// Uses GEMINI_API_KEY (must be set in Vercel envs).
+// Returns { ok: true, answer: "..." } or helpful error JSON.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST allowed" });
 
   try {
-    const payload = req.body || {};
-    // accept either field name
-    let raw = payload.image || payload.imageBase64 || null;
-    const filename = payload.filename || "uploaded-image";
+    const body = req.body || {};
+    let raw = body.image || body.imageBase64 || null;
+    const filename = body.filename || "uploaded-image";
 
-    if (!raw) {
-      return res.status(400).json({ error: "image or imageBase64 required in JSON body" });
+    if (!raw || typeof raw !== "string") {
+      return res.status(400).json({ error: "image (base64 or dataURL) required in JSON body" });
     }
 
-    // if client sent "data:image/png;base64,AAAA..." remove prefix
-    if (typeof raw === "string" && raw.includes(",")) {
-      const parts = raw.split(",");
-      raw = parts[1] || parts[parts.length - 1];
-    }
+    // Strip data URL prefix if present
+    if (raw.includes(",")) raw = raw.split(",")[1];
 
-    if (typeof raw !== "string") {
-      return res.status(400).json({ error: "image must be a base64 string" });
-    }
-
-    // minimal size check (avoid sending huge blobs accidentally)
+    // Basic size check
     const approxBytes = Math.ceil((raw.length * 3) / 4);
-    const MAX_BYTES = 5 * 1024 * 1024; // 5MB safe default
+    const MAX_BYTES = 6 * 1024 * 1024; // 6 MB - safe limit for serverless request/LLM payload
     if (approxBytes > MAX_BYTES) {
-      return res.status(413).json({ error: "Image too large", sizeBytes: approxBytes });
+      return res.status(413).json({ error: "Image too large", approxBytes, maxBytes: MAX_BYTES });
     }
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -39,31 +32,27 @@ export default async function handler(req, res) {
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
     if (!GEMINI_API_KEY) {
-      return res.status(500).json({ error: "GEMINI_API_KEY missing in environment" });
+      return res.status(500).json({ error: "GEMINI_API_KEY not configured in environment" });
     }
 
-    // Build model prompt + include the base64 as inlineData (your previous working shape)
-    // NOTE: the model/service may have limits on binary-in-text. If you still get schema errors,
-    // we'll switch to a different approach (base64 -> storage URL -> LLM).
+    // Build a short instruction + include image inlineData (this matches your previously-working shape)
+    const mimeType = filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+
     const requestBody = {
       contents: [
         {
           parts: [
-            // inlineData part for the image (mime guess from filename)
             {
               inlineData: {
-                mimeType: filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg",
+                mimeType,
                 data: raw
               }
             },
-            // instruction part
             {
-              text: [
-                "You are CollegeGPT for HSIT (Hirasugar Institute of Technology).",
-                "Describe this image in 2–4 short sentences and list the main visible objects, text, or signs.",
-                "Do not invent facts or personal identities; if uncertain, say so.",
-                `Filename: ${filename}`
-              ].join(" ")
+              text:
+                "You are CollegeGPT for HSIT (Hirasugar Institute of Technology). " +
+                "Describe the image in 2-3 short sentences. List main visible objects and any legible text. " +
+                "Do NOT invent personal identities or facts. If uncertain, say so."
             }
           ]
         }
@@ -81,15 +70,15 @@ export default async function handler(req, res) {
     const rawText = await resp.text();
 
     if (!resp.ok) {
-      // return Gemini error body to help debugging
+      // return useful debug info to help identify exact failure
       return res.status(resp.status).json({
-        error: `Gemini responded with status ${resp.status}`,
-        details: rawText.slice(0, 4000), // avoid huge responses
-        requestSummary: { filename, approxBytes }
+        error: `Gemini error ${resp.status}`,
+        details: rawText.slice(0, 4000),
+        requestSummary: { filename, approxBytes, mimeType }
       });
     }
 
-    // parse JSON and extract model text from common locations
+    // parse response
     let json;
     try {
       json = JSON.parse(rawText);
@@ -97,28 +86,26 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to parse Gemini JSON", raw: rawText.slice(0, 4000) });
     }
 
-    const candidateText =
+    // Try common locations for returned text
+    const textCandidate =
       json?.candidates?.[0]?.content?.[0]?.text ||
       json?.candidates?.[0]?.content?.parts?.find((p) => p.text)?.text ||
       json?.output?.[0]?.content?.[0]?.text ||
-      // fallback to probing content parts
-      (Array.isArray(json?.candidates?.[0]?.content)
-        ? json.candidates[0].content.map((c) => (c?.text ? c.text : JSON.stringify(c))).join("\n")
-        : null);
+      null;
 
-    if (!candidateText) {
-      // return the full json if we couldn't extract a simple text answer
+    if (!textCandidate) {
+      // if no simple text field, return the model json (truncated) to debug
       return res.status(200).json({
         ok: true,
         answer: null,
-        note: "No single text field found in Gemini response",
+        note: "No text found in Gemini response (structure unexpected). See gemini field.",
         gemini: json
       });
     }
 
-    return res.json({ ok: true, answer: candidateText });
+    return res.json({ ok: true, answer: textCandidate });
   } catch (err) {
-    console.error("describeImage error:", err);
+    console.error("describeImage exception:", err);
     return res.status(500).json({ error: String(err) });
   }
 }
