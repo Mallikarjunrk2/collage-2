@@ -91,67 +91,59 @@ export default function Home() {
       });
 
     try {
-      const dataUrl = await toDataURL(file, 1200, 0.7); // resize + compress
-      const payload = { image: dataUrl, filename: file.name || "photo.jpg" };
+      // 1) compress image and create a user message that displays it
+      const dataUrl = await toDataURL(file, 1200, 0.7);
+      const userImageMsg = {
+        id: Date.now(),
+        role: "user",
+        text: null,
+        image: dataUrl, // used by renderer to show preview
+        filename: file.name || "photo.jpg",
+        time: new Date().toLocaleTimeString(),
+      };
+      setMessages((m) => [...m, userImageMsg]);
 
-      // POST JSON to alt endpoint (no extra server deps)
-      const resp = await fetch("/api/describeImage_alt", {
+      // 2) send to alt endpoint (small JSON)
+      const payload = { image: dataUrl, filename: file.name || "photo.jpg" };
+      let resp = await fetch("/api/describeImage_alt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
+      }).catch(() => null);
 
-      if (!resp.ok) {
-        // fallback: try original describeImage endpoint if alt fails
-        try {
-          const fallbackResp = await fetch("/api/describeImage", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          if (fallbackResp && fallbackResp.ok) {
-            const jf = await fallbackResp.json();
-            setMessages((m) => [
-              ...m,
-              {
-                id: Date.now(),
-                role: "bot",
-                text: jf.answer || "Image described.",
-                source: jf.source || "vision",
-                time: new Date().toLocaleTimeString(),
-              },
-            ]);
-            setLoading(false);
-            return;
-          }
-        } catch (e) {
-          // ignore fallback error, we'll show generic failure below
-        }
+      // 3) fallback to original endpoint if alt fails
+      if (!resp || !resp.ok) {
+        resp = await fetch("/api/describeImage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).catch(() => null);
+      }
 
-        // If we reached here, both endpoints failed
+      // 4) show result
+      if (resp && resp.ok) {
+        const j = await resp.json();
+        const botMsg = {
+          id: Date.now() + 1,
+          role: "bot",
+          text: j.answer || j.error || "Image described.",
+          source: j.source || "vision",
+          time: new Date().toLocaleTimeString(),
+        };
+        setMessages((m) => [...m, botMsg]);
+      } else {
+        // If API failed, show error message from bot but keep the image visible (user message)
         setMessages((m) => [
           ...m,
           {
-            id: Date.now(),
+            id: Date.now() + 1,
             role: "bot",
             text: "⚠️ Image description failed",
             source: "vision-error",
             time: new Date().toLocaleTimeString(),
           },
         ]);
-        setLoading(false);
-        return;
       }
-
-      const j = await resp.json();
-      const botMsg = {
-        id: Date.now(),
-        role: "bot",
-        text: j.answer || j.error || "Image described.",
-        source: j.source || "vision",
-        time: new Date().toLocaleTimeString(),
-      };
-      setMessages((m) => [...m, botMsg]);
     } catch (err) {
       console.error("handleImageUpload error", err);
       setMessages((m) => [
@@ -190,18 +182,24 @@ export default function Home() {
           {messages.map((m) => (
             <div
               key={m.id}
-              className={`mb-5 flex ${
-                m.role === "user" ? "justify-end" : "justify-start"
-              }`}
+              className={`mb-5 flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-xl p-3 rounded-xl ${
-                  m.role === "user"
-                    ? "bg-purple-700"
-                    : "bg-gray-800 border border-white/10"
-                }`}
+                className={`max-w-xl p-3 rounded-xl ${m.role === "user" ? "bg-purple-700" : "bg-gray-800 border border-white/10"}`}
               >
-                <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+                {/* If this message has an image, render it */}
+                {m.image ? (
+                  <div className="mb-2">
+                    <img
+                      src={m.image}
+                      alt={m.filename || "uploaded image"}
+                      style={{ maxWidth: "420px", width: "100%", borderRadius: 12, display: "block" }}
+                    />
+                  </div>
+                ) : null}
+
+                {/* Text content (bot or user text) */}
+                {m.text ? <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div> : null}
 
                 {m.source && (
                   <div className="mt-1 text-xs text-gray-400">
