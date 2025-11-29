@@ -11,7 +11,8 @@
     "next": "14.x",
     "react": "18.x",
     "react-dom": "18.x",
-    "@supabase/supabase-js": "2.x"
+    "@supabase/supabase-js": "2.x",
+    "formidable": "^3.7.0"
   },
   "devDependencies": {
     "tailwindcss": "3.x",
