@@ -2,115 +2,25 @@
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * Improved ask endpoint:
- * - larger alias map (college + faculty + common misspellings)
- * - ignore 1-2 char queries and simple greetings
- * - department-aware filtering (if user mentions "cse" etc)
- * - stronger scoring with exact-name boost, token coverage, and tie-safety
+ * Multi-table ask endpoint
+ * - Uses Supabase DB tables (college_basic, faculty_list, staff, placements / Collage_placements,
+ *   subjects, semesters, branches, "Students list")
+ * - Routes queries by keywords; fuzzy matches for people (faculty/staff)
+ * - Falls back to LLM only when DB is not configured or DB errors occur
  *
- * Required envs:
+ * Required env:
  * - NEXT_PUBLIC_SUPABASE_URL
- * - SUPABASE_SERVICE_ROLE_KEY (recommended) or NEXT_PUBLIC_SUPABASE_ANON_KEY
- * - GEMINI_API_KEY (optional) and GEMINI_API_URL (optional)
+ * - SUPABASE_SERVICE_ROLE_KEY (recommended) OR NEXT_PUBLIC_SUPABASE_ANON_KEY
+ * - GEMINI_API_URL / GEMINI_API_KEY (optional; used only for fallback when DB unavailable)
  */
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const GEMINI_API_URL =
-  process.env.GEMINI_API_URL ||
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  process.env.GEMINI_API_URL || "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 
-// Full alias map (extend as needed)
-const aliasMap = {
-  // cricket examples
-  "rcb": "royal challengers bengaluru",
-  "rcb owner": "royal challengers bengaluru owner",
-  "royal challengers bengaluru": "royal challengers bengaluru",
-  "royal challengers bangalore": "royal challengers bengaluru",
-
-  // branches + variants
-  "cse": "computer science and engineering",
-  "computer science": "computer science and engineering",
-  "computer science and engineering": "computer science and engineering",
-  "ece": "electronics and communication engineering",
-  "electronics and communication engineering": "electronics and communication engineering",
-  "me": "mechanical engineering",
-  "mechanical": "mechanical engineering",
-  "ce": "civil engineering",
-  "civil": "civil engineering",
-  "eee": "electrical and electronics engineering",
-  "electrical": "electrical and electronics engineering",
-
-  // college canonical + variants and misspellings
-  "hsit": "hirasugar institute of technology",
-  "hsit nidasoshi": "hirasugar institute of technology nidasoshi",
-  "hirasugar": "hirasugar institute of technology",
-  "hirasugar institute of technology": "hirasugar institute of technology",
-  "hit nidasoshi": "hirasugar institute of technology nidasoshi",
-  "nidasoshi": "hirasugar institute of technology nidasoshi",
-  "nidasoshi engineering college": "hirasugar institute of technology nidasoshi",
-  "nidasoshi engineering collage": "hirasugar institute of technology nidasoshi", // misspelling
-  "nidasshi": "hirasugar institute of technology nidasoshi", // misspelling
-
-  // common queries about faculty list
-  "hsit faculty": "hirasugar institute of technology faculty list",
-  "hsit faculty list": "hirasugar institute of technology faculty list",
-  "hit faculty": "hirasugar institute of technology faculty list",
-  "hit faculty list": "hirasugar institute of technology faculty list",
-  "hsit facylty list": "hirasugar institute of technology faculty list", // misspelling
-  "hit facukty list": "hirasugar institute of technology faculty list", // misspelling
-
-  // roles
-  "hod": "head of department",
-  "cse hod": "head of department, computer science and engineering",
-  "head of department": "head of department",
-  "principal": "principal",
-
-  // popular faculty name aliases (normalize to DB full names)
-  "mallikarjun": "prof. mallikarjun g. ganachari",
-  "mallikarjun ganachari": "prof. mallikarjun g. ganachari",
-  "mgganachari": "prof. mallikarjun g. ganachari",
-  "prof. mallikarjun g. ganachari": "prof. mallikarjun g. ganachari",
-  "sapna": "prof. sapna b patil",
-  "sapna patil": "prof. sapna b patil",
-  "kb manwade": "dr. k. b. manwade",
-  "manwade": "dr. k. b. manwade",
-  "manjaragi": "dr. s. v. manjaragi",
-  "aruna": "mrs. aruna anil daptardar",
-  "manoj chitale": "manojkumar a chitale",
-  "shruti kumbar": "prof. shruti kumbar",
-  "sujata mane": "ms. sujata ishwar mane",
-
-  // courses / short forms
-  "os": "operating systems",
-  "operating system": "operating systems",
-  "operating systems": "operating systems",
-  "ds": "data structures and applications",
-  "data structures": "data structures and applications",
-  "dbms": "database management systems",
-  "ml": "machine learning",
-  "machine learning": "machine learning",
-  "cloud": "cloud computing",
-  "java": "java",
-  "digital electronics": "digital electronics",
-  "vlsi": "vlsi design",
-  "embedded": "embedded systems",
-  "embedded systems": "embedded systems"
-};
-
-// Small set of greeting/stop tokens we want to ignore for DB lookup
-const GREETINGS = new Set(["hi", "hello", "hey", "ok", "yo", "h", "hi!", "hello!"]);
-
-// Department tokens to enforce department filter when present
-const DEPT_TOKENS = [
-  "computer science and engineering", "computer science", "cse",
-  "electronics and communication engineering", "ece",
-  "mechanical engineering", "me", "civil engineering", "ce",
-  "electrical and electronics engineering", "eee"
-];
-
+/* ---------------- utilities ---------------- */
 function normalizeText(s = "") {
   return String(s || "")
     .toLowerCase()
@@ -118,30 +28,13 @@ function normalizeText(s = "") {
     .replace(/\s+/g, " ")
     .trim();
 }
-
 function tokenize(s = "") {
-  return normalizeText(s)
-    .split(" ")
-    .filter(Boolean);
+  return normalizeText(s).split(" ").filter(Boolean);
 }
-
-// Gemini fallback call (same shape, key in URL)
 async function callGemini(question) {
-  if (!GEMINI_API_KEY || !GEMINI_API_URL) {
-    return { answer: "LLM not configured (GEMINI_API_KEY/GEMINI_API_URL missing).", source: "llm" };
-  }
+  if (!GEMINI_API_KEY || !GEMINI_API_URL) return { answer: "LLM not configured.", source: "llm" };
   try {
-    const body = {
-      contents: [
-        {
-          parts: [
-            {
-              text: `You are CollegeGPT for HSIT Nidasoshi. Answer concisely. Question: ${question}`
-            }
-          ]
-        }
-      ]
-    };
+    const body = { contents: [{ parts: [{ text: `You are CollegeGPT for HSIT. Answer concisely: ${question}` }] }] };
     const resp = await fetch(`${GEMINI_API_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -152,212 +45,277 @@ async function callGemini(question) {
       return { answer: `LLM error ${resp.status}: ${txt}`, source: "llm" };
     }
     const json = await resp.json();
-    const text =
-      json?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      json?.output?.[0]?.content?.[0]?.text ||
-      null;
+    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || json?.output?.[0]?.content?.[0]?.text || null;
     return { answer: text || "No answer from LLM.", source: "llm" };
   } catch (err) {
     return { answer: `LLM exception: ${String(err)}`, source: "llm" };
   }
 }
 
-/**
- * Score a faculty row against tokens.
- * Weighted rules:
- *  - exact name contains token -> +8 (strong)
- *  - name contains token -> +5
- *  - department match -> +3
- *  - specialization match -> +2
- *  - course match -> +4
- *  - email/mobile exact token -> +3
- *  - notes -> +1
- *
- * Also returns matched token count to compute coverage.
- */
-function scoreRow(row, tokens) {
+/* ---------------- routing keywords ---------------- */
+const COLLEGE_KEYS = ["college", "hsit", "hit", "hirasugar", "nidasoshi", "campus", "established", "affiliation", "website", "contact", "phone", "email"];
+const FACULTY_KEYS = ["who", "teacher", "teaches", "hod", "prof", "professor", "assistant", "associate", "lecturer", "instructor", "faculty", "teach"];
+const STAFF_KEYS = ["staff", "peon", "helper", "mechanic", "instructor", "lab", "lab assistant", "lab instructor", "helper", "clerk"];
+const PLACEMENTS_KEYS = ["placement", "placements", "company", "salary", "offer", "offers", "placement 2024", "placement 2023", "recruit"];
+const SUBJECT_KEYS = ["subject", "subjects", "syllabus", "curriculum", "semester", "sem", "subject_code", "subject_title"];
+const STUDENT_KEYS = ["student", "students", "usn", "roll", "name", "passed", "batch"];
+const BRANCH_KEYS = ["branch", "branches", "cse", "ece", "me", "ce", "eee", "computer science", "mechanical", "civil", "electronics"];
+
+/* small alias map (add more if you want) */
+const aliasMap = {
+  rcb: "royal challengers bengaluru",
+  cse: "computer science and engineering",
+  hsit: "hirasugar institute of technology",
+  hit: "hirasugar institute of technology",
+  mallikarjun: "prof. mallikarjun g. ganachari",
+  sapna: "prof. sapna b patil"
+};
+
+/* ---------------- scoring for people ---------------- */
+function parseCourses(row) {
+  if (!row) return [];
+  try {
+    if (Array.isArray(row)) return row.map((c) => normalizeText(String(c)));
+    if (typeof row === "string") {
+      const parsed = JSON.parse(row);
+      if (Array.isArray(parsed)) return parsed.map((c) => normalizeText(String(c)));
+    }
+  } catch (e) {}
+  // fallback comma split
+  return String(row || "").split(/,|;|\|/).map((s) => normalizeText(s)).filter(Boolean);
+}
+
+function scorePersonRow(row, tokens) {
+  // returns numeric score
   let score = 0;
   const name = normalizeText(row.name || "");
   const dept = normalizeText(row.department || "");
-  const spec = normalizeText(row.specialization || "");
+  const spec = normalizeText(row.specialization || row.qualifications || "");
   const notes = normalizeText(row.notes || "");
-  const email = normalizeText(row.email_official || row.email || "");
+  const email = normalizeText(row.email_official || row.email || row.email_other || "");
   const mobile = normalizeText(row.mobile || "");
-  let coursesArr = [];
+  const courses = parseCourses(row.courses_taught || row.courses || row.subjects);
 
-  if (Array.isArray(row.courses_taught)) {
-    coursesArr = row.courses_taught.map((c) => normalizeText(String(c)));
-  } else if (row.courses_taught) {
-    try {
-      const parsed = typeof row.courses_taught === "string" ? JSON.parse(row.courses_taught) : row.courses_taught;
-      if (Array.isArray(parsed)) coursesArr = parsed.map((c) => normalizeText(String(c)));
-      else coursesArr = [normalizeText(String(row.courses_taught))];
-    } catch {
-      coursesArr = String(row.courses_taught).split(/,|;|\|/).map((c) => normalizeText(c));
-    }
-  }
-
-  let matchedTokens = 0;
+  let matched = 0;
   for (const t of tokens) {
     if (!t) continue;
-    let matched = false;
-    // exact full-name token (if query token equals full normalized name or full alias)
-    if (name === t || name.includes(` ${t} `) || name.startsWith(`${t} `) || name.endsWith(` ${t}`)) {
-      score += 8;
-      matched = true;
-    } else if (name.includes(t)) {
-      score += 5;
-      matched = true;
-    }
-
-    if (dept.includes(t)) { score += 3; matched = true; }
-    if (spec.includes(t)) { score += 2; matched = true; }
-
-    for (const c of coursesArr) {
-      if (c.includes(t)) { score += 4; matched = true; break; }
-    }
-
-    if (notes.includes(t)) { score += 1; matched = true; }
-    if (email.includes(t)) { score += 3; matched = true; }
-    if (mobile.includes(t)) { score += 3; matched = true; }
-
-    if (matched) matchedTokens++;
+    if (name.includes(t)) { score += 6; matched++; }
+    else if (name.split(" ").some(n => n === t)) { score += 4; matched++; }
+    if (dept.includes(t)) { score += 3; matched++; }
+    if (spec.includes(t)) { score += 2; matched++; }
+    for (const c of courses) { if (c.includes(t)) { score += 4; matched++; break; } }
+    if (notes.includes(t)) { score += 1; matched++; }
+    if (email.includes(t)) { score += 2; matched++; }
+    if (mobile.includes(t)) { score += 2; matched++; }
   }
-
-  // coverage bonus: many tokens matched relative to tokens.length
-  const coverage = tokens.length ? matchedTokens / tokens.length : 0;
+  // coverage bonus
+  const coverage = tokens.length ? matched / tokens.length : 0;
   if (coverage >= 0.6) score += 2;
-  else if (coverage >= 0.4) score += 1;
-
-  return { score, matchedTokens, coverage };
+  else if (coverage >= 0.35) score += 1;
+  return score;
 }
 
-// helper: check if any dept token present in normalized query
-function detectDepartment(normalized) {
-  for (const d of DEPT_TOKENS) {
-    if (normalized.includes(d)) return d;
-  }
-  return null;
+/* ---------------- helper: detect intent table ---------------- */
+function detectIntent(norm) {
+  // college-level
+  for (const k of COLLEGE_KEYS) if (norm.includes(k)) return "college";
+  for (const k of PLACEMENTS_KEYS) if (norm.includes(k)) return "placements";
+  for (const k of SUBJECT_KEYS) if (norm.includes(k)) return "subjects";
+  for (const k of STUDENT_KEYS) if (norm.includes(k)) return "students";
+  // people: faculty vs staff - use both and decide by scoring
+  for (const k of FACULTY_KEYS) if (norm.includes(k)) return "people";
+  for (const k of STAFF_KEYS) if (norm.includes(k)) return "people";
+  // branches
+  for (const k of BRANCH_KEYS) if (norm.includes(k)) return "branches";
+  // fallback: people (faculty/staff) first as common queries are about people
+  return "people";
 }
 
+/* ---------------- API handler ---------------- */
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST supported" });
   const { question } = req.body || {};
-  if (!question || !question.trim()) return res.status(400).json({ error: "question required" });
+  if (!question || !String(question).trim()) return res.status(400).json({ error: "question required" });
 
-  const qRaw = question.trim();
+  const qRaw = String(question).trim();
   const qNorm = normalizeText(qRaw);
 
-  // quick greeting guard
-  if (GREETINGS.has(qNorm) || (qNorm.length <= 2 && qNorm.length >= 1)) {
-    return res.json({ answer: "Hi 👋 How can I help you?", source: "generic" });
-  }
+  // quick guard for very short greetings
+  if (["hi","hello","hey","ok","yo"].includes(qNorm)) return res.json({ answer: "Hi 👋 How can I help you?", source: "generic" });
 
-  // find alias (exact or contained)
-  let matched_alias = null;
-  if (aliasMap[qNorm]) matched_alias = qNorm;
-  else {
-    for (const k of Object.keys(aliasMap)) {
-      const pat = new RegExp(`\\b${k.replace(/\s+/g, "\\s+")}\\b`, "i");
-      if (pat.test(qNorm)) {
-        matched_alias = k;
-        break;
-      }
-    }
+  // alias normalization: replace short aliases to canonical phrases before tokenizing
+  let effectiveQuery = qRaw;
+  for (const k of Object.keys(aliasMap)) {
+    if (qNorm.includes(k)) effectiveQuery = effectiveQuery.replace(new RegExp(`\\b${k}\\b`, "i"), aliasMap[k]);
   }
-
-  const effectiveQuery = matched_alias ? aliasMap[matched_alias] : qRaw;
   const tokens = tokenize(effectiveQuery).filter(Boolean);
 
-  // if tokens are too short (like only one token of length 1-2) -> generic
-  if (tokens.length === 1 && tokens[0].length <= 2) {
-    return res.json({ answer: "Hi 👋 How can I help you?", source: "generic" });
-  }
-
-  // detect department token for stricter filtering
-  const detectedDept = detectDepartment(normalizeText(effectiveQuery));
-
-  // If no Supabase configured -> fallback to LLM
+  // If Supabase not configured -> fallback to LLM (safe)
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     const llm = await callGemini(effectiveQuery);
-    if (matched_alias) llm.matched_alias = matched_alias;
-    return res.json(llm);
+    return res.json({ ...llm, debug: { note: "supabase not configured" } });
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const intent = detectIntent(qNorm);
 
   try {
-    // load faculty rows
-    const LIMIT = 1000;
-    const { data: rows, error } = await supabase.from("faculty_list").select("*").limit(LIMIT);
-
-    if (error) {
-      const llm = await callGemini(effectiveQuery);
-      if (matched_alias) llm.matched_alias = matched_alias;
-      return res.json(llm);
-    }
-
-    if (!rows || rows.length === 0) {
-      const llm = await callGemini(effectiveQuery);
-      if (matched_alias) llm.matched_alias = matched_alias;
-      return res.json(llm);
-    }
-
-    // Optionally pre-filter by department if detected to reduce false positives
-    let candidateRows = rows;
-    if (detectedDept) {
-      const dnorm = normalizeText(detectedDept);
-      candidateRows = rows.filter((r) => normalizeText(r.department || "").includes(dnorm) || normalizeText(r.specialization || "").includes(dnorm));
-      // if filter produced zero rows, fallback to full list (avoid empty)
-      if (candidateRows.length === 0) candidateRows = rows;
-    }
-
-    // Score each candidate
-    const scored = candidateRows.map((r) => {
-      const s = scoreRow(r, tokens);
-      return { row: r, score: s.score, matchedTokens: s.matchedTokens, coverage: s.coverage };
-    });
-
-    // sort by score desc then coverage
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return b.coverage - a.coverage;
-    });
-
-    const best = scored[0] || null;
-    const second = scored[1] || { score: 0 };
-
-    // threshold and tie-safety
-    const THRESHOLD = 6; // require at least this many points (tweak if needed)
-    const MIN_SCORE_RATIO = 1.15; // best must be 15% better than second to be safe
-
-    if (best && best.score >= THRESHOLD && (second.score === 0 || best.score >= Math.max(THRESHOLD, second.score * MIN_SCORE_RATIO))) {
-      const r = best.row;
-      const parts = [];
-      parts.push(`${r.name}${r.designation ? " — " + r.designation : ""}`);
-      if (r.department) parts.push(`Department: ${r.department}`);
-      if (r.specialization) parts.push(`Specialization: ${r.specialization}`);
-      if (r.courses_taught) {
-        const courses = Array.isArray(r.courses_taught) ? r.courses_taught.join(", ") : r.courses_taught;
-        parts.push(`Courses: ${courses}`);
+    /* ---------------- college_basic ---------------- */
+    if (intent === "college") {
+      const { data: collegeRow, error } = await supabase.from("college_basic").select("*").limit(1).maybeSingle();
+      if (error) {
+        const llm = await callGemini(effectiveQuery);
+        return res.json({ answer: llm.answer, source: "llm", debug: { db_error: String(error) } });
       }
-      if (r.email_official) parts.push(`Email: ${r.email_official}`);
-      if (r.mobile) parts.push(`Phone: ${r.mobile}`);
-      if (r.notes) parts.push(`Notes: ${r.notes}`);
-
+      if (!collegeRow) return res.json({ answer: "College information not available in DB.", source: "db-empty" });
+      const parts = [];
+      if (collegeRow.college_name || collegeRow.name) parts.push(collegeRow.college_name || collegeRow.name);
+      if (collegeRow.location) parts.push(`Location: ${collegeRow.location}`);
+      if (collegeRow.established) parts.push(`Established: ${collegeRow.established}`);
+      if (collegeRow.affiliation) parts.push(`Affiliation: ${collegeRow.affiliation}`);
+      if (collegeRow.approved_by) parts.push(`Approved by: ${collegeRow.approved_by}`);
+      if (collegeRow.type) parts.push(`Type: ${collegeRow.type}`);
+      if (collegeRow.campus_area) parts.push(`Campus area: ${collegeRow.campus_area}`);
+      if (collegeRow.contact_phone) parts.push(`Phone: ${collegeRow.contact_phone}`);
+      if (collegeRow.contact_email) parts.push(`Email: ${collegeRow.contact_email}`);
+      if (collegeRow.website) parts.push(`Website: ${collegeRow.website}`);
+      if (collegeRow.description) parts.push(collegeRow.description);
       const answer = parts.join("\n");
-      return res.json({ answer, source: "supabase", matched_alias, debug: { top_score: best.score, second_score: second.score, detectedDept } });
+      return res.json({ answer: answer || "College info present but no fields.", source: "supabase-college" });
     }
 
-    // No confident DB match -> fallback to LLM, but include low-confidence suggestions
-    const llm = await callGemini(effectiveQuery);
-    if (matched_alias) llm.matched_alias = matched_alias;
-    const suggestions = scored.slice(0, 5).filter((s) => s.score > 0).map((s) => ({ name: s.row.name, score: s.score }));
-    if (suggestions.length) llm.suggestions = suggestions;
-    return res.json(llm);
+    /* ---------------- placements (two possible table names) ---------------- */
+    if (intent === "placements") {
+      // try both names: "placements" and "Collage_placements"
+      const tableCandidates = ["placements", "Collage_placements"];
+      let rows = [];
+      for (const t of tableCandidates) {
+        try {
+          const { data } = await supabase.from(t).select("*").limit(200);
+          if (Array.isArray(data) && data.length) rows = rows.concat(data.map(r => ({ ...r, __table: t })));
+        } catch (_) {}
+      }
+      if (!rows.length) return res.json({ answer: "No placement records found in DB.", source: "db-empty" });
+
+      // find by year/company tokens
+      const yearToken = tokens.find(t => /^\d{4}|\d{2}-\d{2}/.test(t)) || tokens.find(t => t.length === 4 && /^\d{4}$/.test(t));
+      const companyToken = tokens.find(t => t.length > 2 && !/^\d+$/.test(t));
+      let matches = rows;
+      if (yearToken) matches = matches.filter(r => String(r.year || "").toLowerCase().includes(yearToken));
+      if (companyToken) matches = matches.filter(r => String(r.company_name || "").toLowerCase().includes(companyToken));
+      if (!matches.length) matches = rows.slice(0, 6); // fallback sample
+
+      const parts = matches.slice(0, 6).map(r => {
+        const s = [];
+        if (r.company_name) s.push(`${r.company_name} (${r.year || r.created_at?.slice?.(0,4) || "year"})`);
+        if (r.offers) s.push(`Offers: ${r.offers}`);
+        if (r.salary_lpa) s.push(`Salary (LPA): ${r.salary_lpa}`);
+        if (r.notes) s.push(`Notes: ${r.notes}`);
+        return s.join(" — ");
+      });
+
+      return res.json({ answer: parts.join("\n"), source: "supabase-placements" });
+    }
+
+    /* ---------------- subjects & semesters ---------------- */
+    if (intent === "subjects") {
+      // match subject_code or subject_title in subjects table
+      const subjQuery = tokens.join(" ");
+      const { data: subjRows } = await supabase.from("subjects").select("*").ilike("subject_title", `%${subjQuery}%`).limit(20);
+      if (subjRows && subjRows.length) {
+        const out = subjRows.map(s => `${s.subject_code} — ${s.subject_title}${s.notes ? " — " + s.notes : ""}`);
+        return res.json({ answer: out.join("\n"), source: "supabase-subjects" });
+      }
+      // try semester info via semesters table (e.g., "sem 3 cse")
+      const semToken = tokens.find(t => /^\d+$/.test(t));
+      let semMatches = [];
+      if (semToken) {
+        const { data: sems } = await supabase.from("semesters").select("*").eq("semester_no", Number(semToken)).limit(20);
+        if (sems && sems.length) semMatches = sems;
+      }
+      if (semMatches.length) {
+        return res.json({ answer: `Found ${semMatches.length} semester rows. Use specific query like "subjects sem ${semMatches[0].semester_no} cse"`, source: "supabase-semesters" });
+      }
+      return res.json({ answer: "No subjects found for your query in DB.", source: "db-empty" });
+    }
+
+    /* ---------------- students ---------------- */
+    if (intent === "students") {
+      // table name "Students list" in your DB
+      const nameToken = tokens.find(t => t.length > 2);
+      if (!nameToken) return res.json({ answer: "Please include student name or USN.", source: "generic" });
+      const { data: studs } = await supabase.from("Students list").select("*").ilike("Name", `%${nameToken}%`).limit(20);
+      if (!studs || studs.length === 0) return res.json({ answer: "No matching student rows found.", source: "db-empty" });
+      const out = studs.map(s => `${s.Name} — USN: ${s.Usn} — Branch: ${s.Branch}`);
+      return res.json({ answer: out.join("\n"), source: "supabase-students" });
+    }
+
+    /* ---------------- branches ---------------- */
+    if (intent === "branches") {
+      const { data: br } = await supabase.from("branches").select("*").limit(50);
+      if (!br || br.length === 0) return res.json({ answer: "No branches found in DB.", source: "db-empty" });
+      const out = br.map(b => `${b.branch_code || ""} — ${b.branch_name || ""}`);
+      return res.json({ answer: out.join("\n"), source: "supabase-branches" });
+    }
+
+    /* ---------------- people (faculty + staff) ---------------- */
+    // fetch faculty_list and staff, merge
+    {
+      const hintedBranchToken = tokens.find(t => ["cse","ece","me","ce","eee","computer","electronics","mechanical","civil","electrical"].includes(t));
+      const buildQuery = (table) => {
+        let q = supabase.from(table).select("*").limit(800);
+        if (hintedBranchToken) {
+          const pattern = `%${hintedBranchToken}%`;
+          q = q.ilike("department", pattern);
+        }
+        return q;
+      };
+      const [facRes, staffRes] = await Promise.allSettled([ buildQuery("faculty_list"), buildQuery("staff") ]);
+      let rows = [];
+      if (facRes.status === "fulfilled" && Array.isArray(facRes.value.data)) rows = rows.concat(facRes.value.data.map(r => ({ ...r, __table: "faculty_list" })));
+      if (staffRes.status === "fulfilled" && Array.isArray(staffRes.value.data)) rows = rows.concat(staffRes.value.data.map(r => ({ ...r, __table: "staff" })));
+      if (!rows.length) return res.json({ answer: "No people rows found in DB.", source: "db-empty" });
+
+      // score each row
+      const scored = rows.map(r => ({ row: r, score: scorePersonRow(r, tokens) }));
+      scored.sort((a,b) => b.score - a.score);
+      const best = scored[0];
+      const second = scored[1] || { score: 0 };
+      const THRESH = 5;
+      const MIN_RATIO = 1.12;
+      if (best && best.score >= THRESH && (second.score === 0 || best.score >= Math.max(THRESH, second.score * MIN_RATIO))) {
+        const r = best.row;
+        const lines = [];
+        lines.push(`${r.name}${r.designation ? " — " + r.designation : ""}`);
+        if (r.department) lines.push(`Department: ${r.department}`);
+        if (r.specialization) lines.push(`Specialization: ${r.specialization}`);
+        const courses = parseCourses(r.courses_taught || r.courses);
+        if (courses.length) lines.push(`Courses: ${courses.slice(0,6).join(", ")}`);
+        if (r.email_official || r.email) lines.push(`Email: ${r.email_official || r.email || r.email_other || ""}`);
+        if (r.mobile) lines.push(`Phone: ${r.mobile}`);
+        if (r.notes) lines.push(`Notes: ${r.notes}`);
+        const answer = lines.join("\n");
+        const sourceLabel = r.__table === "staff" ? "supabase-staff" : "supabase-faculty";
+        return res.json({ answer, source: sourceLabel, debug: { top_score: best.score, second_score: second.score } });
+      }
+
+      // no confident person match -> provide top suggestions
+      const suggestions = scored.slice(0,6).filter(s => s.score > 0).map(s => ({ name: s.row.name, score: s.score, table: s.row.__table }));
+      if (suggestions.length) {
+        const sugText = suggestions.map(s => `${s.name} (${s.table}) — score ${s.score}`).join("\n");
+        return res.json({ answer: `No confident single match. Top suggestions:\n${sugText}`, source: "supabase-suggestions" });
+      }
+
+      return res.json({ answer: "No matching person found in DB.", source: "db-empty" });
+    }
+
   } catch (err) {
-    const llm = await callGemini(effectiveQuery);
-    if (matched_alias) llm.matched_alias = matched_alias;
-    return res.json({ answer: llm.answer || String(err), source: llm.source || "llm" });
+    // fallback to LLM only if DB throws unexpected exception
+    try {
+      const llm = await callGemini(effectiveQuery);
+      return res.json({ answer: llm.answer || String(err), source: llm.source || "llm", debug: { exception: String(err) } });
+    } catch (e2) {
+      return res.json({ answer: String(err), source: "error", debug: { exception: String(err) } });
+    }
   }
 }
