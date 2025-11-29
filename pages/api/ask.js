@@ -2,16 +2,13 @@
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * Multi-table ask endpoint
- * - Uses Supabase DB tables (college_basic, faculty_list, staff, placements / Collage_placements,
- *   subjects, semesters, branches, "Students list")
- * - Routes queries by keywords; fuzzy matches for people (faculty/staff)
- * - Falls back to LLM only when DB is not configured or DB errors occur
+ * Improved ask endpoint with bigger alias map and fuzzy name matching.
+ * Replace existing pages/api/ask.js with this file.
  *
- * Required env:
+ * Requires:
  * - NEXT_PUBLIC_SUPABASE_URL
- * - SUPABASE_SERVICE_ROLE_KEY (recommended) OR NEXT_PUBLIC_SUPABASE_ANON_KEY
- * - GEMINI_API_URL / GEMINI_API_KEY (optional; used only for fallback when DB unavailable)
+ * - SUPABASE_SERVICE_ROLE_KEY OR NEXT_PUBLIC_SUPABASE_ANON_KEY
+ * - (optional) GEMINI_API_URL and GEMINI_API_KEY for LLM fallback
  */
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,7 +17,7 @@ const GEMINI_API_URL =
   process.env.GEMINI_API_URL || "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 
-/* ---------------- utilities ---------------- */
+/* ----------------- helpers ----------------- */
 function normalizeText(s = "") {
   return String(s || "")
     .toLowerCase()
@@ -31,6 +28,27 @@ function normalizeText(s = "") {
 function tokenize(s = "") {
   return normalizeText(s).split(" ").filter(Boolean);
 }
+function levenshtein(a = "", b = "") {
+  // small, efficient edit distance for short tokens
+  a = String(a || "");
+  b = String(b || "");
+  const n = a.length, m = b.length;
+  if (n === 0) return m;
+  if (m === 0) return n;
+  const v0 = new Array(m + 1).fill(0);
+  const v1 = new Array(m + 1).fill(0);
+  for (let j = 0; j <= m; j++) v0[j] = j;
+  for (let i = 0; i < n; i++) {
+    v1[0] = i + 1;
+    for (let j = 0; j < m; j++) {
+      const cost = a[i] === b[j] ? 0 : 1;
+      v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
+    }
+    for (let j = 0; j <= m; j++) v0[j] = v1[j];
+  }
+  return v1[m];
+}
+
 async function callGemini(question) {
   if (!GEMINI_API_KEY || !GEMINI_API_URL) return { answer: "LLM not configured.", source: "llm" };
   try {
@@ -38,7 +56,7 @@ async function callGemini(question) {
     const resp = await fetch(`${GEMINI_API_URL}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
     if (!resp.ok) {
       const txt = await resp.text();
@@ -52,26 +70,64 @@ async function callGemini(question) {
   }
 }
 
-/* ---------------- routing keywords ---------------- */
-const COLLEGE_KEYS = ["college", "hsit", "hit", "hirasugar", "nidasoshi", "campus", "established", "affiliation", "website", "contact", "phone", "email"];
-const FACULTY_KEYS = ["who", "teacher", "teaches", "hod", "prof", "professor", "assistant", "associate", "lecturer", "instructor", "faculty", "teach"];
-const STAFF_KEYS = ["staff", "peon", "helper", "mechanic", "instructor", "lab", "lab assistant", "lab instructor", "helper", "clerk"];
-const PLACEMENTS_KEYS = ["placement", "placements", "company", "salary", "offer", "offers", "placement 2024", "placement 2023", "recruit"];
-const SUBJECT_KEYS = ["subject", "subjects", "syllabus", "curriculum", "semester", "sem", "subject_code", "subject_title"];
-const STUDENT_KEYS = ["student", "students", "usn", "roll", "name", "passed", "batch"];
-const BRANCH_KEYS = ["branch", "branches", "cse", "ece", "me", "ce", "eee", "computer science", "mechanical", "civil", "electronics"];
-
-/* small alias map (add more if you want) */
+/* --------------- alias map (extended) --------------- */
+/* Add any other variants you see in logs. This map is used to expand short forms
+   before tokenizing (so "kb manawade" -> "k b manwade" or direct canonical name) */
 const aliasMap = {
-  rcb: "royal challengers bengaluru",
-  cse: "computer science and engineering",
+  // college variants
   hsit: "hirasugar institute of technology",
+  "hsit nidasoshi": "hirasugar institute of technology nidasoshi",
   hit: "hirasugar institute of technology",
-  mallikarjun: "prof. mallikarjun g. ganachari",
-  sapna: "prof. sapna b patil"
+  hirasugar: "hirasugar institute of technology",
+  nidasoshi: "hirasugar institute of technology nidasoshi",
+  // branches
+  cse: "computer science and engineering",
+  "computer science": "computer science and engineering",
+  ece: "electronics and communication engineering",
+  me: "mechanical engineering",
+  ce: "civil engineering",
+  eee: "electrical and electronics engineering",
+  // cricket / misc
+  rcb: "royal challengers bengaluru",
+  "rcb owner": "royal challengers bengaluru owner",
+  // faculty short forms and misspellings
+  "mallikarjun": "prof. mallikarjun g. ganachari",
+  "mallikarjun ganachari": "prof. mallikarjun g. ganachari",
+  "mgganachari": "prof. mallikarjun g. ganachari",
+  "sapna": "prof. sapna b patil",
+  "sapna patil": "prof. sapna b patil",
+  "kb manwade": "dr. k. b. manwade",
+  "k b manwade": "dr. k. b. manwade",
+  "kb manawade": "dr. k. b. manwade", // common misspell
+  "kb manwad": "dr. k. b. manwade",
+  "manwade": "dr. k. b. manwade",
+  "manjaragi": "dr. s. v. manjaragi",
+  "s v manjaragi": "dr. s. v. manjaragi",
+  "aruna daptardar": "mrs. aruna anil daptardar",
+  "manoj chitale": "manojkumar a chitale",
+  "shruti kumbar": "prof. shruti kumbar",
+  "sujata mane": "ms. sujata ishwar mane",
+  // courses shorthand
+  os: "operating systems",
+  "operating system": "operating systems",
+  ds: "data structures and applications",
+  dbms: "database management systems",
+  ml: "machine learning",
+  cloud: "cloud computing",
+  vlsi: "vlsi design",
+  embedded: "embedded systems"
 };
 
-/* ---------------- scoring for people ---------------- */
+/* --------- intent keywords (same as before) --------- */
+const COLLEGE_KEYS = ["college", "hsit", "hit", "hirasugar", "nidasoshi", "campus", "established", "affiliation", "website", "contact", "phone", "email"];
+const FACULTY_KEYS = ["who", "teacher", "teaches", "hod", "prof", "professor", "assistant", "associate", "lecturer", "instructor", "faculty", "teach"];
+const STAFF_KEYS = ["staff", "peon", "helper", "mechanic", "lab", "lab assistant", "lab instructor", "clerk"];
+const PLACEMENTS_KEYS = ["placement", "placements", "company", "salary", "offer", "offers", "recruit"];
+const SUBJECT_KEYS = ["subject", "subjects", "syllabus", "curriculum", "semester", "sem"];
+const STUDENT_KEYS = ["student", "students", "usn", "roll", "name", "batch"];
+const BRANCH_KEYS = ["branch", "branches", "cse", "ece", "me", "ce", "eee", "computer", "mechanical", "civil", "electronics"];
+
+/* ---------- parse courses helper ---------- */
 function parseCourses(row) {
   if (!row) return [];
   try {
@@ -81,14 +137,14 @@ function parseCourses(row) {
       if (Array.isArray(parsed)) return parsed.map((c) => normalizeText(String(c)));
     }
   } catch (e) {}
-  // fallback comma split
   return String(row || "").split(/,|;|\|/).map((s) => normalizeText(s)).filter(Boolean);
 }
 
+/* ---------- improved person scorer (with fuzzy name) ---------- */
 function scorePersonRow(row, tokens) {
-  // returns numeric score
   let score = 0;
   const name = normalizeText(row.name || "");
+  const nameParts = name.split(" ").filter(Boolean);
   const dept = normalizeText(row.department || "");
   const spec = normalizeText(row.specialization || row.qualifications || "");
   const notes = normalizeText(row.notes || "");
@@ -99,8 +155,21 @@ function scorePersonRow(row, tokens) {
   let matched = 0;
   for (const t of tokens) {
     if (!t) continue;
-    if (name.includes(t)) { score += 6; matched++; }
-    else if (name.split(" ").some(n => n === t)) { score += 4; matched++; }
+
+    // exact token equals a name part
+    if (nameParts.includes(t)) { score += 7; matched++; continue; }
+
+    // name contains token (substring)
+    if (name.includes(t)) { score += 5; matched++; continue; }
+
+    // fuzzy: compare token to each name part using levenshtein (small tolerance)
+    for (const np of nameParts) {
+      const dist = levenshtein(t, np);
+      // allow 1 edit for short tokens (<=3), 2 edits for medium (<=6), else <=2
+      const thresh = np.length <= 3 ? 1 : np.length <= 6 ? 2 : 2;
+      if (dist <= thresh) { score += 5; matched++; break; }
+    }
+
     if (dept.includes(t)) { score += 3; matched++; }
     if (spec.includes(t)) { score += 2; matched++; }
     for (const c of courses) { if (c.includes(t)) { score += 4; matched++; break; } }
@@ -108,6 +177,7 @@ function scorePersonRow(row, tokens) {
     if (email.includes(t)) { score += 2; matched++; }
     if (mobile.includes(t)) { score += 2; matched++; }
   }
+
   // coverage bonus
   const coverage = tokens.length ? matched / tokens.length : 0;
   if (coverage >= 0.6) score += 2;
@@ -115,19 +185,15 @@ function scorePersonRow(row, tokens) {
   return score;
 }
 
-/* ---------------- helper: detect intent table ---------------- */
+/* ---------- intent detection ---------- */
 function detectIntent(norm) {
-  // college-level
   for (const k of COLLEGE_KEYS) if (norm.includes(k)) return "college";
   for (const k of PLACEMENTS_KEYS) if (norm.includes(k)) return "placements";
   for (const k of SUBJECT_KEYS) if (norm.includes(k)) return "subjects";
   for (const k of STUDENT_KEYS) if (norm.includes(k)) return "students";
-  // people: faculty vs staff - use both and decide by scoring
   for (const k of FACULTY_KEYS) if (norm.includes(k)) return "people";
   for (const k of STAFF_KEYS) if (norm.includes(k)) return "people";
-  // branches
   for (const k of BRANCH_KEYS) if (norm.includes(k)) return "branches";
-  // fallback: people (faculty/staff) first as common queries are about people
   return "people";
 }
 
@@ -140,17 +206,19 @@ export default async function handler(req, res) {
   const qRaw = String(question).trim();
   const qNorm = normalizeText(qRaw);
 
-  // quick guard for very short greetings
+  // tiny greeting guard
   if (["hi","hello","hey","ok","yo"].includes(qNorm)) return res.json({ answer: "Hi 👋 How can I help you?", source: "generic" });
 
-  // alias normalization: replace short aliases to canonical phrases before tokenizing
+  // apply alias map replacements before tokenizing
   let effectiveQuery = qRaw;
-  for (const k of Object.keys(aliasMap)) {
-    if (qNorm.includes(k)) effectiveQuery = effectiveQuery.replace(new RegExp(`\\b${k}\\b`, "i"), aliasMap[k]);
+  for (const [k, v] of Object.entries(aliasMap)) {
+    const patt = new RegExp(`\\b${k.replace(/\s+/g,"\\s+")}\\b`, "i");
+    if (patt.test(qNorm)) effectiveQuery = effectiveQuery.replace(patt, v);
   }
+
   const tokens = tokenize(effectiveQuery).filter(Boolean);
 
-  // If Supabase not configured -> fallback to LLM (safe)
+  // supabase required for DB-first behavior
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     const llm = await callGemini(effectiveQuery);
     return res.json({ ...llm, debug: { note: "supabase not configured" } });
@@ -160,14 +228,11 @@ export default async function handler(req, res) {
   const intent = detectIntent(qNorm);
 
   try {
-    /* ---------------- college_basic ---------------- */
+    /* ---------- college info ---------- */
     if (intent === "college") {
       const { data: collegeRow, error } = await supabase.from("college_basic").select("*").limit(1).maybeSingle();
-      if (error) {
-        const llm = await callGemini(effectiveQuery);
-        return res.json({ answer: llm.answer, source: "llm", debug: { db_error: String(error) } });
-      }
-      if (!collegeRow) return res.json({ answer: "College information not available in DB.", source: "db-empty" });
+      if (error) { const llm = await callGemini(effectiveQuery); return res.json({ answer: llm.answer, source: "llm", debug: { db_error: String(error) } }); }
+      if (!collegeRow) return res.json({ answer: "College information not found in DB.", source: "db-empty" });
       const parts = [];
       if (collegeRow.college_name || collegeRow.name) parts.push(collegeRow.college_name || collegeRow.name);
       if (collegeRow.location) parts.push(`Location: ${collegeRow.location}`);
@@ -179,14 +244,11 @@ export default async function handler(req, res) {
       if (collegeRow.contact_phone) parts.push(`Phone: ${collegeRow.contact_phone}`);
       if (collegeRow.contact_email) parts.push(`Email: ${collegeRow.contact_email}`);
       if (collegeRow.website) parts.push(`Website: ${collegeRow.website}`);
-      if (collegeRow.description) parts.push(collegeRow.description);
-      const answer = parts.join("\n");
-      return res.json({ answer: answer || "College info present but no fields.", source: "supabase-college" });
+      return res.json({ answer: parts.join("\n"), source: "supabase-college" });
     }
 
-    /* ---------------- placements (two possible table names) ---------------- */
+    /* ---------- placements ---------- */
     if (intent === "placements") {
-      // try both names: "placements" and "Collage_placements"
       const tableCandidates = ["placements", "Collage_placements"];
       let rows = [];
       for (const t of tableCandidates) {
@@ -196,15 +258,12 @@ export default async function handler(req, res) {
         } catch (_) {}
       }
       if (!rows.length) return res.json({ answer: "No placement records found in DB.", source: "db-empty" });
-
-      // find by year/company tokens
-      const yearToken = tokens.find(t => /^\d{4}|\d{2}-\d{2}/.test(t)) || tokens.find(t => t.length === 4 && /^\d{4}$/.test(t));
+      const yearToken = tokens.find(t => /^\d{4}$/.test(t) || /\d{2}-\d{2}/.test(t));
       const companyToken = tokens.find(t => t.length > 2 && !/^\d+$/.test(t));
       let matches = rows;
       if (yearToken) matches = matches.filter(r => String(r.year || "").toLowerCase().includes(yearToken));
       if (companyToken) matches = matches.filter(r => String(r.company_name || "").toLowerCase().includes(companyToken));
-      if (!matches.length) matches = rows.slice(0, 6); // fallback sample
-
+      if (!matches.length) matches = rows.slice(0, 6);
       const parts = matches.slice(0, 6).map(r => {
         const s = [];
         if (r.company_name) s.push(`${r.company_name} (${r.year || r.created_at?.slice?.(0,4) || "year"})`);
@@ -213,35 +272,27 @@ export default async function handler(req, res) {
         if (r.notes) s.push(`Notes: ${r.notes}`);
         return s.join(" — ");
       });
-
       return res.json({ answer: parts.join("\n"), source: "supabase-placements" });
     }
 
-    /* ---------------- subjects & semesters ---------------- */
+    /* ---------- subjects ---------- */
     if (intent === "subjects") {
-      // match subject_code or subject_title in subjects table
       const subjQuery = tokens.join(" ");
       const { data: subjRows } = await supabase.from("subjects").select("*").ilike("subject_title", `%${subjQuery}%`).limit(20);
       if (subjRows && subjRows.length) {
         const out = subjRows.map(s => `${s.subject_code} — ${s.subject_title}${s.notes ? " — " + s.notes : ""}`);
         return res.json({ answer: out.join("\n"), source: "supabase-subjects" });
       }
-      // try semester info via semesters table (e.g., "sem 3 cse")
       const semToken = tokens.find(t => /^\d+$/.test(t));
-      let semMatches = [];
       if (semToken) {
         const { data: sems } = await supabase.from("semesters").select("*").eq("semester_no", Number(semToken)).limit(20);
-        if (sems && sems.length) semMatches = sems;
+        if (sems && sems.length) return res.json({ answer: `Found ${sems.length} semester rows. Use "subjects sem ${sems[0].semester_no} <branch>"`, source: "supabase-semesters" });
       }
-      if (semMatches.length) {
-        return res.json({ answer: `Found ${semMatches.length} semester rows. Use specific query like "subjects sem ${semMatches[0].semester_no} cse"`, source: "supabase-semesters" });
-      }
-      return res.json({ answer: "No subjects found for your query in DB.", source: "db-empty" });
+      return res.json({ answer: "No subjects match found.", source: "db-empty" });
     }
 
-    /* ---------------- students ---------------- */
+    /* ---------- students ---------- */
     if (intent === "students") {
-      // table name "Students list" in your DB
       const nameToken = tokens.find(t => t.length > 2);
       if (!nameToken) return res.json({ answer: "Please include student name or USN.", source: "generic" });
       const { data: studs } = await supabase.from("Students list").select("*").ilike("Name", `%${nameToken}%`).limit(20);
@@ -250,7 +301,7 @@ export default async function handler(req, res) {
       return res.json({ answer: out.join("\n"), source: "supabase-students" });
     }
 
-    /* ---------------- branches ---------------- */
+    /* ---------- branches ---------- */
     if (intent === "branches") {
       const { data: br } = await supabase.from("branches").select("*").limit(50);
       if (!br || br.length === 0) return res.json({ answer: "No branches found in DB.", source: "db-empty" });
@@ -258,16 +309,12 @@ export default async function handler(req, res) {
       return res.json({ answer: out.join("\n"), source: "supabase-branches" });
     }
 
-    /* ---------------- people (faculty + staff) ---------------- */
-    // fetch faculty_list and staff, merge
+    /* ---------- people (faculty + staff) ---------- */
     {
       const hintedBranchToken = tokens.find(t => ["cse","ece","me","ce","eee","computer","electronics","mechanical","civil","electrical"].includes(t));
       const buildQuery = (table) => {
         let q = supabase.from(table).select("*").limit(800);
-        if (hintedBranchToken) {
-          const pattern = `%${hintedBranchToken}%`;
-          q = q.ilike("department", pattern);
-        }
+        if (hintedBranchToken) q = q.ilike("department", `%${hintedBranchToken}%`);
         return q;
       };
       const [facRes, staffRes] = await Promise.allSettled([ buildQuery("faculty_list"), buildQuery("staff") ]);
@@ -276,13 +323,16 @@ export default async function handler(req, res) {
       if (staffRes.status === "fulfilled" && Array.isArray(staffRes.value.data)) rows = rows.concat(staffRes.value.data.map(r => ({ ...r, __table: "staff" })));
       if (!rows.length) return res.json({ answer: "No people rows found in DB.", source: "db-empty" });
 
-      // score each row
+      // score rows with improved fuzzy
       const scored = rows.map(r => ({ row: r, score: scorePersonRow(r, tokens) }));
       scored.sort((a,b) => b.score - a.score);
       const best = scored[0];
       const second = scored[1] || { score: 0 };
-      const THRESH = 5;
-      const MIN_RATIO = 1.12;
+
+      // thresholds tuned: higher requirement for ambiguity safety
+      const THRESH = 6;
+      const MIN_RATIO = 1.15;
+
       if (best && best.score >= THRESH && (second.score === 0 || best.score >= Math.max(THRESH, second.score * MIN_RATIO))) {
         const r = best.row;
         const lines = [];
@@ -299,18 +349,16 @@ export default async function handler(req, res) {
         return res.json({ answer, source: sourceLabel, debug: { top_score: best.score, second_score: second.score } });
       }
 
-      // no confident person match -> provide top suggestions
-      const suggestions = scored.slice(0,6).filter(s => s.score > 0).map(s => ({ name: s.row.name, score: s.score, table: s.row.__table }));
+      // suggestions list
+      const suggestions = scored.slice(0,8).filter(s => s.score > 0).map(s => ({ name: s.row.name, score: s.score, table: s.row.__table }));
       if (suggestions.length) {
         const sugText = suggestions.map(s => `${s.name} (${s.table}) — score ${s.score}`).join("\n");
-        return res.json({ answer: `No confident single match. Top suggestions:\n${sugText}`, source: "supabase-suggestions" });
+        return res.json({ answer: `No single confident match. Top suggestions:\n${sugText}`, source: "supabase-suggestions" });
       }
-
       return res.json({ answer: "No matching person found in DB.", source: "db-empty" });
     }
-
   } catch (err) {
-    // fallback to LLM only if DB throws unexpected exception
+    // fallback to LLM on unexpected DB exception
     try {
       const llm = await callGemini(effectiveQuery);
       return res.json({ answer: llm.answer || String(err), source: llm.source || "llm", debug: { exception: String(err) } });
