@@ -108,11 +108,7 @@ export default function Home() {
 
         {/* Header */}
         <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/10">
-          <img
-            src="/hsit-logo.png"
-            alt="HSIT Logo"
-            className="w-14 h-14 rounded object-cover border border-white/10"
-          />
+          
           <div>
             <div className="text-xl font-bold">🎓 CollegeGPT — HSIT</div>
             <div className="text-sm text-gray-400">
