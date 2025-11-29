@@ -54,40 +54,106 @@ export default function Home() {
     setLoading(false);
   }
 
-  // Image Upload Describe
+  // Image Upload Describe (compressed client-side -> JSON POST to /api/describeImage_alt)
   async function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-
     setLoading(true);
 
-    const form = new FormData();
-    form.append("file", file);
+    // helper: convert File -> compressed dataURL
+    const toDataURL = (file, maxWidth = 1200, quality = 0.7) =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("FileReader failed"));
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            // compute target size
+            const scale = Math.min(1, maxWidth / img.width);
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+            try {
+              const dataUrl = canvas.toDataURL("image/jpeg", quality);
+              resolve(dataUrl);
+            } catch (err) {
+              reject(err);
+            }
+          };
+          img.onerror = () => reject(new Error("Image load failed"));
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
 
-    let result = await fetch("/api/describeImage", {
-      method: "POST",
-      body: form,
-    }).catch(() => null);
+    try {
+      const dataUrl = await toDataURL(file, 1200, 0.7); // resize + compress
+      const payload = { image: dataUrl, filename: file.name || "photo.jpg" };
 
-    if (!result || !result.ok) {
-      // Try backup
-      result = await fetch("/api/generateImage", {
+      // POST JSON to alt endpoint (no extra server deps)
+      const resp = await fetch("/api/describeImage_alt", {
         method: "POST",
-        body: form,
-      }).catch(() => null);
-    }
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    if (result && result.ok) {
-      const json = await result.json();
+      if (!resp.ok) {
+        // fallback: try original describeImage endpoint if alt fails
+        try {
+          const fallbackResp = await fetch("/api/describeImage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (fallbackResp && fallbackResp.ok) {
+            const jf = await fallbackResp.json();
+            setMessages((m) => [
+              ...m,
+              {
+                id: Date.now(),
+                role: "bot",
+                text: jf.answer || "Image described.",
+                source: jf.source || "vision",
+                time: new Date().toLocaleTimeString(),
+              },
+            ]);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          // ignore fallback error, we'll show generic failure below
+        }
+
+        // If we reached here, both endpoints failed
+        setMessages((m) => [
+          ...m,
+          {
+            id: Date.now(),
+            role: "bot",
+            text: "⚠️ Image description failed",
+            source: "vision-error",
+            time: new Date().toLocaleTimeString(),
+          },
+        ]);
+        setLoading(false);
+        return;
+      }
+
+      const j = await resp.json();
       const botMsg = {
         id: Date.now(),
         role: "bot",
-        text: json.answer || "Image described.",
-        source: "vision",
+        text: j.answer || j.error || "Image described.",
+        source: j.source || "vision",
         time: new Date().toLocaleTimeString(),
       };
       setMessages((m) => [...m, botMsg]);
-    } else {
+    } catch (err) {
+      console.error("handleImageUpload error", err);
       setMessages((m) => [
         ...m,
         {
@@ -95,11 +161,12 @@ export default function Home() {
           role: "bot",
           text: "⚠️ Image description failed",
           source: "vision-error",
+          time: new Date().toLocaleTimeString(),
         },
       ]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   return (
