@@ -1,16 +1,7 @@
 // pages/api/ask.js
 import { createClient } from "@supabase/supabase-js";
 
-/**
- * ask.js - DB-first + LLM fallback (Gemini or OpenAI)
- *
- * Env vars expected:
- * - NEXT_PUBLIC_SUPABASE_URL
- * - SUPABASE_SERVICE_ROLE_KEY OR NEXT_PUBLIC_SUPABASE_ANON_KEY
- * - GEMINI_API_URL (optional)
- * - GEMINI_API_KEY (optional)
- * - OPENAI_API_KEY (optional; used in preference to Gemini if present)
- */
+
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -19,7 +10,6 @@ const GEMINI_API_URL =
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || null;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || null;
 
-/* ----------------- helpers ----------------- */
 function normalizeText(s = "") {
   return String(s || "")
     .toLowerCase()
@@ -50,7 +40,7 @@ function levenshtein(a = "", b = "") {
   return v1[m];
 }
 
-/* ---------------- LLM helpers ----------------- */
+
 async function callGemini(question) {
   if (!GEMINI_API_KEY || !GEMINI_API_URL) return { answer: "LLM not configured.", source: "llm" };
   try {
@@ -76,7 +66,7 @@ async function callOpenAI(question) {
   if (!OPENAI_API_KEY) return { answer: "OpenAI not configured.", source: "llm" };
   try {
     const payload = {
-      model: "gpt-4o-mini", // change if you have different preferred model
+      model: "gpt-4o-mini", 
       messages: [
         { role: "system", content: "You are CollegeGPT for HSIT. Answer concisely and clearly." },
         { role: "user", content: question },
@@ -105,7 +95,7 @@ async function callOpenAI(question) {
 }
 
 async function callAnyLLM(question) {
-  // prefer OpenAI if configured, else Gemini
+
   if (OPENAI_API_KEY) return callOpenAI(question);
   return callGemini(question);
 }
@@ -160,7 +150,7 @@ const SUBJECT_KEYS = ["subject", "subjects", "syllabus", "curriculum", "semester
 const STUDENT_KEYS = ["student", "students", "usn", "roll", "name", "batch"];
 const BRANCH_KEYS = ["branch", "branches", "cse", "ece", "me", "ce", "eee", "computer", "mechanical", "civil", "electronics"];
 
-/* ---------- parse courses helper ---------- */
+
 function parseCourses(row) {
   if (!row) return [];
   try {
@@ -189,13 +179,13 @@ function scorePersonRow(row, tokens) {
   for (const t of tokens) {
     if (!t) continue;
 
-    // exact token equals a name part
+
     if (nameParts.includes(t)) { score += 7; matched++; continue; }
 
-    // name contains token (substring)
+  
     if (name.includes(t)) { score += 5; matched++; continue; }
 
-    // fuzzy: compare token to each name part using levenshtein (small tolerance)
+    
     for (const np of nameParts) {
       const dist = levenshtein(t, np);
       const thresh = np.length <= 3 ? 1 : np.length <= 6 ? 2 : 2;
@@ -216,7 +206,7 @@ function scorePersonRow(row, tokens) {
   return score;
 }
 
-/* ---------- intent detection ---------- */
+
 function detectIntent(norm) {
   for (const k of COLLEGE_KEYS) if (norm.includes(k)) return "college";
   for (const k of PLACEMENTS_KEYS) if (norm.includes(k)) return "placements";
@@ -228,7 +218,7 @@ function detectIntent(norm) {
   return "people";
 }
 
-/* ---------------- API handler ---------------- */
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Only POST supported" });
   const { question } = req.body || {};
@@ -237,10 +227,9 @@ export default async function handler(req, res) {
   const qRaw = String(question).trim();
   const qNorm = normalizeText(qRaw);
 
-  // tiny greeting guard
   if (["hi","hello","hey","ok","yo"].includes(qNorm)) return res.json({ answer: "Hi 👋 How can I help you?", source: "generic" });
 
-  // apply alias map replacements before tokenizing
+ 
   let effectiveQuery = qRaw;
   for (const [k, v] of Object.entries(aliasMap)) {
     const patt = new RegExp(`\\b${k.replace(/\s+/g,"\\s+")}\\b`, "i");
@@ -249,7 +238,7 @@ export default async function handler(req, res) {
 
   const tokens = tokenize(effectiveQuery).filter(Boolean);
 
-  // --- heuristic: route obvious non-college general-knowledge questions to LLM ---
+
   const GENERAL_ENTITIES = new Set([
     "google","gmail","facebook","twitter","amazon","microsoft","elon","musk","sundar","pichai",
     "modi","narendra","pm","prime","minister","president","owner","owns","owners","who","what","when","where","why"
@@ -262,7 +251,7 @@ export default async function handler(req, res) {
     return res.json({ answer: llm.answer, source: llm.source, debug: { route: "wh-general-heuristic" } });
   }
 
-  // If supabase not configured, fallback to LLM immediately
+ 
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     const llm = await callAnyLLM(effectiveQuery);
     return res.json({ ...llm, debug: { note: "supabase not configured" } });
@@ -274,7 +263,7 @@ export default async function handler(req, res) {
   try {
     /* ---------- college info ---------- */
     if (intent === "college") {
-      // support both possible table names: college_info, college_basic
+      
       const tryTables = ["college_info", "college_basic"];
       let collegeRow = null;
       for (const t of tryTables) {
@@ -284,7 +273,7 @@ export default async function handler(req, res) {
         } catch (_) {}
       }
       if (!collegeRow) {
-        // fallback to LLM if college info missing
+        
         const llm = await callAnyLLM(effectiveQuery);
         return res.json({ answer: llm.answer, source: llm.source, debug: { route: "college-fallback-llm" } });
       }
@@ -401,18 +390,18 @@ export default async function handler(req, res) {
       if (facRes.status === "fulfilled" && Array.isArray(facRes.value.data)) rows = rows.concat(facRes.value.data.map(r => ({ ...r, __table: "faculty_list" })));
       if (staffRes.status === "fulfilled" && Array.isArray(staffRes.value.data)) rows = rows.concat(staffRes.value.data.map(r => ({ ...r, __table: "staff" })));
       if (!rows.length) {
-        // no people rows in DB - fallback to LLM (useful for "who is indian pm"-type Qs)
+        
         const llm = await callAnyLLM(effectiveQuery);
         return res.json({ answer: llm.answer, source: llm.source, debug: { route: "people-db-empty-fallback-llm" } });
       }
 
-      // score rows with improved fuzzy
+    
       const scored = rows.map(r => ({ row: r, score: scorePersonRow(r, tokens) }));
       scored.sort((a,b) => b.score - a.score);
       const best = scored[0];
       const second = scored[1] || { score: 0 };
 
-      // thresholds tuned for safety
+      
       const THRESH = 6;
       const MIN_RATIO = 1.15;
 
@@ -432,12 +421,12 @@ export default async function handler(req, res) {
         return res.json({ answer, source: sourceLabel, debug: { top_score: best.score, second_score: second.score } });
       }
 
-      // if no single confident match, but suggestions exist, return suggestions
+      
       const suggestions = scored.slice(0,8).filter(s => s.score > 0).map(s => ({ name: s.row.name, score: s.score, table: s.row.__table }));
       if (suggestions.length) {
-        // But also attempt LLM fallback for general-knowledge questions (user might have asked something outside DB)
+        
         const llm = await callAnyLLM(effectiveQuery);
-        // prefer LLM if it returned a meaningful answer; otherwise return suggestions
+       
         if (llm && llm.answer && !/(LLM not configured|No answer)/i.test(llm.answer)) {
           return res.json({ answer: llm.answer, source: llm.source, debug: { route: "people-suggestions-llm-preferred", suggestions } });
         }
@@ -445,7 +434,7 @@ export default async function handler(req, res) {
         return res.json({ answer: `No single confident match. Top suggestions:\n${sugText}`, source: "supabase-suggestions" });
       }
 
-      // final fallback to LLM
+
       const llm = await callAnyLLM(effectiveQuery);
       if (llm && llm.answer && !/(LLM not configured|No answer)/i.test(llm.answer)) {
         return res.json({ answer: llm.answer, source: llm.source, debug: { route: "people-final-llm-fallback" } });
@@ -453,7 +442,7 @@ export default async function handler(req, res) {
       return res.json({ answer: "No matching person found in DB.", source: "db-empty" });
     }
   } catch (err) {
-    // fallback to LLM on unexpected DB exception
+
     try {
       const llm = await callAnyLLM(effectiveQuery);
       return res.json({ answer: llm.answer || String(err), source: llm.source || "llm", debug: { exception: String(err) } });
