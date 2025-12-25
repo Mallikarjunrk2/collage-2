@@ -1,14 +1,9 @@
-/* styles/globals.css
-   Full CSS for the updated UI (hero + chat styling + overrides)
-   Replace your existing globals.css with this content.
-*/
 
-/* Tailwind layers — keep if you use Tailwind in the project */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Reset small things for consistency */
+
 html, body, #__next {
   height: 100%;
   margin: 0;
@@ -18,9 +13,7 @@ html, body, #__next {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* -------------------------------
-   Variables and general tokens
-   ------------------------------- */
+
 :root{
   --bg-page: #071024;
   --panel: #0f1720;
@@ -33,9 +26,6 @@ html, body, #__next {
   --radius-lg: 14px;
 }
 
-/* -------------------------------
-   Hero / Landing style (top)
-   ------------------------------- */
 
 .hero-wrapper {
   background: linear-gradient(180deg, #071026 0%, #07101a 100%);
@@ -92,7 +82,7 @@ html, body, #__next {
   font-size: 14px;
 }
 
-/* hero input box (centered tools + input) */
+
 .hero-input {
   display: flex;
   gap: 12px;
@@ -160,19 +150,17 @@ html, body, #__next {
   color: #fff;
 }
 
-/* -------------------------------
-   Chat panel and message bubbles
-   ------------------------------- */
+
 
 .flex-1.overflow-auto.bg-[#0f1720] {
-  /* ensure the panel is visually lifted */
+  
   background: linear-gradient(180deg, rgba(16,22,28,0.96), rgba(8,12,18,0.9));
   border-radius: 12px;
   padding: 18px;
   min-height: 380px;
 }
 
-/* bot bubble: glassy card */
+
 .bg-gray-800.border {
   background: linear-gradient(180deg, rgba(30,38,48,0.95), rgba(20,28,36,0.9));
   border: 1px solid var(--glass-border);
@@ -183,7 +171,7 @@ html, body, #__next {
   line-height: 1.45;
 }
 
-/* user bubble */
+
 .bg-purple-700 {
   background: linear-gradient(180deg, var(--bubble-user), #6d28d9 70%);
   border-radius: 18px;
@@ -192,14 +180,14 @@ html, body, #__next {
   box-shadow: 0 8px 20px rgba(124,58,237,0.12);
 }
 
-/* times and small meta */
+
 .text-xs.text-gray-500,
 .text-xs.text-gray-400 {
   color: var(--muted) !important;
   font-size: 12px;
 }
 
-/* image preview styling inside bubble */
+
 img[alt="uploaded image"] {
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.03);
@@ -207,7 +195,7 @@ img[alt="uploaded image"] {
   display: block;
 }
 
-/* small json/code blocks inside bot replies */
+
 div[style*="white-space: pre-wrap"] pre,
 div[style*="white-space: pre-wrap"] code {
   background: rgba(0,0,0,0.12);
@@ -216,7 +204,7 @@ div[style*="white-space: pre-wrap"] code {
   overflow-x: auto;
 }
 
-/* responsive tweaks */
+
 @media (max-width: 880px) {
   .hero-title { font-size: 26px; }
   .hero-inner { padding: 8px; }
@@ -224,14 +212,14 @@ div[style*="white-space: pre-wrap"] code {
   .max-w-4xl { padding: 0 12px; }
 }
 
-/* small utilities to ensure contrast on dark backgrounds */
+
 button, input, label {
   font-family: inherit;
 }
-/* Mobile fixes for rounded input bar (paste at end of globals.css) */
+
 @media (max-width: 640px) {
 
-  /* target the input-row created in pages/index.js */
+ 
   .mt-4 > .flex.items-center,
   .mt-4 > .flex.items-center.gap-3 {
     display: flex !important;
@@ -242,7 +230,6 @@ button, input, label {
     border-radius: 18px !important;
   }
 
-  /* Upload label: keep compact but tappable */
   .mt-4 > .flex.items-center label.cursor-pointer,
   .mt-4 > .flex.items-center .upload-hero,
   .mt-4 > .flex.items-center .label {
@@ -253,16 +240,16 @@ button, input, label {
     border-radius: 12px !important;
   }
 
-  /* Main input: allow shrink and take available space */
+
   .mt-4 > .flex.items-center input.flex-1,
   .mt-4 > .flex.items-center input.hero-search {
     flex: 1 1 auto !important;
-    min-width: 0 !important; /* very important: allows shrink on small screens */
+    min-width: 0 !important; 
     padding: 10px 12px !important;
     font-size: 14px !important;
   }
 
-  /* Send button: keep visible and small */
+
   .mt-4 > .flex.items-center button.px-5,
   .mt-4 > .flex.items-center .send-btn-hero,
   .mt-4 > .flex.items-center button {
@@ -274,12 +261,12 @@ button, input, label {
     z-index: 5;
   }
 
-  /* If the rounded container is too tall, reduce radius on mobile */
+
   .mt-4 > .flex.items-center {
     border-radius: 14px !important;
   }
 
-  /* Prevent images inside bubbles from overflowing on small devices */
+
   .max-w-xl img,
   img[alt="uploaded image"] {
     max-width: 100% !important;
@@ -287,4 +274,4 @@ button, input, label {
   }
 }
 
-/* end of globals.css */
+
