@@ -1,11 +1,11 @@
-// components/Sidebar.js
+
 export default function Sidebar({
   chats = [],
   onSelectChat = () => {},
   onNewChat = () => {},
   onClear = () => {},
 }) {
-  // ensure chats is always array
+
   const safeChats = Array.isArray(chats) ? chats : [];
 
   return (
