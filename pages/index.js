@@ -7,12 +7,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const endRef = useRef();
 
-  // Auto scroll on new messages
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Send text question to API
+
   async function send() {
     if (!q.trim()) return;
     const userMsg = {
@@ -54,13 +53,13 @@ export default function Home() {
     setLoading(false);
   }
 
-  // Image upload: compress and send to describe endpoint
+  
   async function handleImageUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setLoading(true);
 
-    // convert File -> compressed dataURL
+   
     const toDataURL = (file, maxWidth = 1200, quality = 0.75) =>
       new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -91,7 +90,7 @@ export default function Home() {
 
     try {
       const dataUrl = await toDataURL(file);
-      // Insert user image bubble
+      
       const userImageMsg = {
         id: Date.now(),
         role: "user",
@@ -109,7 +108,7 @@ export default function Home() {
         body: JSON.stringify(payload),
       }).catch(() => null);
 
-      // fallback if alt endpoint not available
+  
       if (!resp || !resp.ok) {
         resp = await fetch("/api/describeImage", {
           method: "POST",
@@ -161,7 +160,7 @@ export default function Home() {
     <div className="min-h-screen bg-[#0b1220] text-white flex justify-center p-6">
       <div className="w-full max-w-3xl flex flex-col">
 
-        {/* Restored simple header (original style) */}
+       
         <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/10">
           <div>
             <div className="text-xl font-bold">🎓 CollegeGPT — HSIT</div>
@@ -172,7 +171,7 @@ export default function Home() {
           <div className="ml-auto text-green-400 text-sm">Status: Live</div>
         </div>
 
-        {/* Chat Window */}
+       
         <div className="flex-1 overflow-auto bg-[#111827] p-4 rounded-xl border border-white/10 min-h-[60vh]">
           {messages.map((m) => (
             <div
@@ -188,7 +187,7 @@ export default function Home() {
                     : "bg-gray-800 border border-white/10"
                 }`}
               >
-                {/* Image preview */}
+             
                 {m.image ? (
                   <div className="mb-2">
                     <img
@@ -200,7 +199,6 @@ export default function Home() {
                   </div>
                 ) : null}
 
-                {/* Text */}
                 {m.text ? <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div> : null}
 
                 {/* Source label */}
@@ -221,7 +219,7 @@ export default function Home() {
           <div ref={endRef}></div>
         </div>
 
-        {/* --- NEW single nice input bar (keeps upload + send) --- */}
+    
         <div className="mt-4">
           <div className="flex items-center gap-3 bg-[#0b1220] p-3 rounded-full border border-white/6">
             {/* Upload button (left) */}
@@ -235,7 +233,7 @@ export default function Home() {
               />
             </label>
 
-            {/* Big rounded input (center) */}
+          
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -244,7 +242,7 @@ export default function Home() {
               className="flex-1 p-3 rounded-full bg-gray-900 border border-white/10 outline-none"
             />
 
-            {/* Send button (right) */}
+         
             <button
               onClick={send}
               disabled={loading}
@@ -255,7 +253,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Footer note */}
         <div className="mt-6 text-center text-gray-500 text-xs pb-4 opacity-80">
           ⚠️ This AI may make mistakes. Still learning from HSIT students ❤️
         </div>
