@@ -1,6 +1,4 @@
-// pages/api/describeImage_alt.js
-// 100% working Gemini Vision image description
-// Accepts JSON POST: { image: "<dataURL>", filename }
+
 
 export const config = { api: { bodyParser: { sizeLimit: "12mb" } } };
 
