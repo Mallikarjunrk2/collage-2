@@ -6,12 +6,16 @@ const SUPABASE_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 /* ===================== NVIDIA KIMI ===================== */
-const KIMI_API_KEY = process.env.GEMINI_API_KEY; // reuse same env key
+const KIMI_API_KEY = process.env.GEMINI_API_KEY;
 const KIMI_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 /* ===================== HELPERS ===================== */
 function normalizeText(s = "") {
-  return String(s).toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+  return String(s)
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function tokenize(s = "") {
@@ -19,7 +23,7 @@ function tokenize(s = "") {
 }
 
 /* ===================== 🔥 KIMI LLM ===================== */
-async function callLLM(question) {
+async function callLLM(question, retry = 1) {
   if (!KIMI_API_KEY) {
     return { answer: "LLM not configured.", source: "llm" };
   }
@@ -37,22 +41,27 @@ async function callLLM(question) {
           {
             role: "system",
             content:
-              "You are CollegeGPT for HSIT. Give short, clear answers. If it's news or screenshot, summarize in 2-3 lines.",
+              "You are CollegeGPT for HSIT. Answer short, clear, and accurate. If it's a screenshot/news, summarize in 2-3 lines.",
           },
           {
             role: "user",
             content: question,
           },
         ],
-        max_tokens: 1024,
+        max_tokens: 800,
         temperature: 0.7,
+        top_p: 1,
+        stream: false, // ✅ IMPORTANT FIX
       }),
     });
 
     if (!resp.ok) {
+      // retry once for 502/500
+      if (retry > 0) return await callLLM(question, retry - 1);
+
       const txt = await resp.text();
       return {
-        answer: `LLM error ${resp.status}: ${txt}`,
+        answer: `LLM error ${resp.status}`,
         source: "llm",
       };
     }
@@ -65,8 +74,10 @@ async function callLLM(question) {
 
     return { answer: text, source: "llm" };
   } catch (err) {
+    if (retry > 0) return await callLLM(question, retry - 1);
+
     return {
-      answer: "LLM exception: " + String(err),
+      answer: "LLM failed. Try again.",
       source: "llm",
     };
   }
@@ -82,8 +93,9 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "question required" });
 
   const q = question.trim();
+  const tokens = tokenize(q);
 
-  // greetings
+  /* ===================== GREETING ===================== */
   if (["hi", "hello", "hey"].includes(q.toLowerCase())) {
     return res.json({
       answer: "Hi 👋 How can I help you?",
@@ -91,7 +103,7 @@ export default async function handler(req, res) {
     });
   }
 
-  /* ===================== DB FIRST ===================== */
+  /* ===================== DB SEARCH (IMPROVED) ===================== */
   if (SUPABASE_URL && SUPABASE_KEY) {
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -99,17 +111,22 @@ export default async function handler(req, res) {
       const { data } = await supabase
         .from("faculty_list")
         .select("*")
-        .ilike("name", `%${q}%`)
-        .limit(1);
+        .limit(200);
 
       if (data && data.length) {
-        const r = data[0];
-        return res.json({
-          answer: `${r.name} — ${r.designation}
-Department: ${r.department}
-Email: ${r.email}`,
-          source: "supabase",
+        const match = data.find((row) => {
+          const name = normalizeText(row.name);
+          return tokens.every((t) => name.includes(t));
         });
+
+        if (match) {
+          return res.json({
+            answer: `${match.name} — ${match.designation}
+Department: ${match.department}
+Email: ${match.email}`,
+            source: "supabase",
+          });
+        }
       }
     } catch (e) {}
   }
