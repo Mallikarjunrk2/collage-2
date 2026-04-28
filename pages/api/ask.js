@@ -47,7 +47,7 @@ async function callLLM(question) {
             {
               role: "system",
               content:
-                "You are CollegeGPT for HSIT. Answer short (2–3 lines).",
+                "You are CollegeGPT for HSIT. Answer ONLY if not college-specific. Keep it short (2–3 lines).",
             },
             {
               role: "user",
@@ -93,36 +93,43 @@ export default async function handler(req, res) {
   }
 
   const q = question.trim();
+  const normalizedQ = normalizeText(q);
 
   /* ===================== GREETING ===================== */
-  if (["hi", "hello", "hey"].includes(q.toLowerCase())) {
+  if (["hi", "hello", "hey"].includes(normalizedQ)) {
     return res.json({
-      answer: "Hi 👋 How can I help you?",
+      answer: "Hi 👋HSIT GPT here, how can I help you?",
       source: "generic",
     });
   }
 
-  /* ===================== 1. LOCAL JSON (FASTEST) ===================== */
+  /* ===================== 🔥 1. LOCAL JSON (HIGHEST PRIORITY) ===================== */
   try {
-    const localAnswer = handleQuery(q);
+    const localAnswer = handleQuery(normalizedQ);
 
+    // STRICT CHECK (important fix)
     if (
       localAnswer &&
-      !localAnswer.toLowerCase().includes("couldn't understand")
+      typeof localAnswer === "string" &&
+      localAnswer.trim().length > 5 &&
+      !localAnswer.toLowerCase().includes("not found") &&
+      !localAnswer.toLowerCase().includes("no data")
     ) {
       return res.json({
         answer: localAnswer,
         source: "local-data",
       });
     }
-  } catch (e) {}
+  } catch (e) {
+    console.log("Local error:", e);
+  }
 
-  /* ===================== 2. SUPABASE ===================== */
+  /* ===================== 🔥 2. SUPABASE ===================== */
   if (SUPABASE_URL && SUPABASE_KEY) {
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     try {
-      const tokens = tokenize(q);
+      const tokens = tokenize(normalizedQ);
 
       const { data } = await supabase
         .from("faculty_list")
@@ -144,10 +151,12 @@ Email: ${match.email}`,
           });
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.log("Supabase error:", e);
+    }
   }
 
-  /* ===================== 3. LLM FALLBACK ===================== */
+  /* ===================== 🔥 3. LLM (LAST FALLBACK) ===================== */
   const llm = await callLLM(q);
   return res.json(llm);
 }
