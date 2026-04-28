@@ -206,7 +206,16 @@
     "Sports Events",
     "Alumni Activities"
   ],
-
+"hsit_quest_2025_judges": [
+  {
+    "name": "Dr Veeranna Modi",
+    "affiliation": "KLE Chikkodi"
+  },
+  {
+    "name": "Dr Veeresh Mathad",
+    "affiliation": "VSM Nippani"
+  }
+],
   "cse_faculty": [
     {
       "name": "Dr K B Manwade",
