@@ -36,18 +36,17 @@ function findBestMatch(list, query, key = "name") {
   return { best, bestScore };
 }
 
-/* ================= 🔥 NEW: ROLE DETECTION ================= */
+/* ================= 🔥 ROLE DETECTION ================= */
 function detectRole(q) {
   if (q.includes("hod") || q.includes("head of department")) return "hod";
   if (q.includes("principal")) return "principal";
   if (q.includes("assistant")) return "assistant";
   if (q.includes("associate")) return "associate";
   if (q.includes("professor")) return "professor";
-
   return null;
 }
 
-/* ================= 🔥 NEW: ROLE FILTER ================= */
+/* ================= 🔥 ROLE FILTER ================= */
 function filterByRole(list, role) {
   if (!role) return list;
 
@@ -59,6 +58,33 @@ function filterByRole(list, role) {
     if (role === "assistant") return d.includes("assistant");
     if (role === "associate") return d.includes("associate");
     if (role === "professor") return d.includes("professor");
+
+    return false;
+  });
+}
+
+/* ================= 🔥 NEW: DEPARTMENT DETECTION ================= */
+function detectDepartment(q) {
+  if (q.includes("cse") || q.includes("computer")) return "cse";
+  if (q.includes("ece") || q.includes("electronics")) return "ece";
+  if (q.includes("eee") || q.includes("electrical")) return "eee";
+  if (q.includes("mech") || q.includes("mechanical")) return "mech";
+  if (q.includes("civil")) return "civil";
+  return null;
+}
+
+/* ================= 🔥 DEPARTMENT FILTER ================= */
+function filterByDepartment(list, dept) {
+  if (!dept) return list;
+
+  return list.filter((p) => {
+    const d = (p.department || "").toLowerCase();
+
+    if (dept === "cse") return d.includes("cse");
+    if (dept === "ece") return d.includes("ece");
+    if (dept === "eee") return d.includes("eee");
+    if (dept === "mech") return d.includes("mech");
+    if (dept === "civil") return d.includes("civil");
 
     return false;
   });
@@ -76,13 +102,17 @@ export function handleQuery(question) {
     ...(data.office_staff || []),
   ];
 
-  /* ================= 🔥 NEW: APPLY ROLE FILTER FIRST ================= */
+  /* ================= 🔥 APPLY ROLE + DEPT ================= */
   const role = detectRole(q);
-  const filteredPeople = filterByRole(allPeople, role);
+  const dept = detectDepartment(q);
 
-  /* ================= 🔥 SCORE MATCH ================= */
+  let filtered = allPeople;
+  filtered = filterByRole(filtered, role);
+  filtered = filterByDepartment(filtered, dept);
+
+  /* ================= 🔥 PERSON MATCH ================= */
   const { best: person, bestScore } = findBestMatch(
-    filteredPeople.length ? filteredPeople : allPeople,
+    filtered.length ? filtered : allPeople,
     q
   );
 
@@ -93,33 +123,24 @@ ${person.email ? "Email: " + person.email : ""}
 ${person.phone ? "Phone: " + person.phone : ""}`;
   }
 
-  /* ================= 🔥 MANAGEMENT ================= */
-  if (q.includes("president")) {
-    return data.advisory_committee.president;
-  }
-
-  if (q.includes("vice president")) {
-    return data.advisory_committee.vice_president;
-  }
-
-  if (q.includes("secretary")) {
-    return data.advisory_committee.secretary;
-  }
-
-  if (q.includes("advisory committee")) {
+  /* ================= 🔥 MANAGEMENT (FIXED) ================= */
+  if (q.includes("management") || q.includes("committee")) {
     const ac = data.advisory_committee;
+
     return `President: ${ac.president}
 Vice President: ${ac.vice_president}
-Secretary: ${ac.secretary}
-Members:
-${ac.members.map((m) => m.name).join("\n")}`;
+Secretary: ${ac.secretary}`;
   }
 
   if (q.includes("governing council")) {
     return data.governing_council.members
-      .map((m) => `${m.name} - ${m.role || ""}`)
+      .map((m) => `${m.name || m} - ${m.role || ""}`)
       .join("\n");
   }
+
+  if (q.includes("president")) return data.advisory_committee.president;
+  if (q.includes("vice president")) return data.advisory_committee.vice_president;
+  if (q.includes("secretary")) return data.advisory_committee.secretary;
 
   /* ================= 🔥 FACULTY ================= */
   if (q.includes("faculty")) {
@@ -149,7 +170,7 @@ ${ac.members.map((m) => m.name).join("\n")}`;
       .join("\n");
   }
 
-  /* ================= 🔥 PRINCIPAL (SAFE KEEP) ================= */
+  /* ================= 🔥 PRINCIPAL ================= */
   if (q.includes("principal")) {
     return `${data.principal.name}
 ${data.principal.designation}
