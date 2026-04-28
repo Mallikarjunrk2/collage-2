@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 
 const SUGGESTIONS = [
-  { icon: "🎓", text: "Tell me about CSE placements" },
-  { icon: "👤", text: "Who is the HOD of CSE?" },
-  { icon: "📚", text: "What courses does HSIT offer?" },
+  { icon: "🎓", text: "hsit president" },
+  { icon: "👤", text: "tech staff?" },
+  { icon: "📚", text: "office staff details" },
   { icon: "📋", text: "How do I apply for admission?" },
 ];
 
