@@ -2,84 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Google Font ── */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500&display=swap');
+
 /* ================= ROOT COLORS ================= */
 :root {
-  /* BACKGROUNDS */
-  --bg-main: #f8fafc;
-  --bg-card: #ffffff;
-  --bg-soft: #f1f5f9;
-
-  /* TEXT */
-  --text-main: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-
-  /* ACCENT */
-  --accent: #f59e0b;
-  --accent-hover: #d97706;
-
-  /* BORDER + SHADOW */
-  --border: #e2e8f0;
-  --shadow: 0 6px 24px rgba(0, 0, 0, 0.05);
-
-  /* RADIUS */
-  --radius: 16px;
+  --bg-main:       #FFF7ED;
+  --bg-card:       #ffffff;
+  --bg-soft:       #FFF3E0;
+  --text-main:     #1c1917;
+  --text-secondary:#57534e;
+  --text-muted:    #a8a29e;
+  --accent:        #F97316;
+  --accent-hover:  #EA6C0A;
+  --border:        rgba(249,115,22,0.15);
+  --shadow:        0 8px 32px rgba(249,115,22,0.08);
+  --radius:        18px;
 }
 
 /* ================= BASE ================= */
-html,
-body,
-#__next {
+html, body, #__next {
   height: 100%;
   margin: 0;
-  background: var(--bg-main);
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-family: 'DM Sans', system-ui, sans-serif;
   color: var(--text-main);
+  background-color: #FFF7ED;
+
+  /* warm grain + top glow */
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -5%, rgba(251,146,60,0.2) 0%, transparent 65%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-attachment: fixed;
 }
 
 /* ================= LAYOUT ================= */
 .container {
-  max-width: 900px;
+  max-width: 860px;
   margin: auto;
-  padding: 20px;
+  padding: 24px 20px;
 }
 
 /* ================= CHAT PANEL ================= */
 .chat-container {
-  background: var(--bg-card);
-  border-radius: 20px;
-  padding: 20px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-radius: 24px;
+  padding: 24px;
   border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  height: 70vh;
+  box-shadow: var(--shadow), 0 1.5px 0 rgba(255,255,255,0.9) inset;
+  height: 60vh;
   overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
 /* ================= MESSAGES ================= */
 .message {
-  max-width: 70%;
-  padding: 14px 16px;
-  margin-bottom: 12px;
+  max-width: 72%;
+  padding: 13px 17px;
+  margin-bottom: 10px;
   border-radius: var(--radius);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
+  animation: fadeUp 0.3s ease both;
 }
 
-/* USER MESSAGE (RIGHT - ORANGE) */
+/* USER MESSAGE */
 .user-message {
   margin-left: auto;
-  background: var(--accent);
+  background: linear-gradient(135deg, #FB923C, #F97316);
   color: white;
-  border-bottom-right-radius: 6px;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: 0 4px 14px rgba(249,115,22,0.25);
 }
 
-/* BOT MESSAGE (LEFT - CARD STYLE) */
+/* BOT MESSAGE */
 .bot-message {
   margin-right: auto;
-  background: var(--bg-card);
+  background: rgba(255,255,255,0.96);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  border-bottom-left-radius: 6px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+  border-radius: 18px 18px 18px 4px;
+  color: var(--text-main);
 }
 
 /* ================= INPUT AREA ================= */
@@ -87,11 +91,17 @@ body,
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 16px;
-  padding: 10px;
-  border: 1px solid var(--border);
+  margin-top: 14px;
+  padding: 8px 8px 8px 18px;
+  border: 1.5px solid rgba(249,115,22,0.2);
   border-radius: 999px;
-  background: var(--bg-card);
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 4px 20px rgba(249,115,22,0.06);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-container:focus-within {
+  border-color: #F97316;
+  box-shadow: 0 4px 20px rgba(249,115,22,0.15);
 }
 
 /* INPUT FIELD */
@@ -100,60 +110,116 @@ body,
   border: none;
   outline: none;
   font-size: 14px;
-  padding: 10px;
+  font-family: 'DM Sans', sans-serif;
   background: transparent;
   color: var(--text-main);
 }
+.input-box::placeholder { color: var(--text-muted); }
 
-/* ================= BUTTON ================= */
+/* ================= SEND BUTTON ================= */
 .send-button {
-  background: var(--accent);
+  background: linear-gradient(135deg, #FB923C, #F97316);
   color: white;
   border: none;
-  padding: 10px 18px;
+  padding: 11px 22px;
   border-radius: 999px;
   cursor: pointer;
-  font-weight: 500;
-  transition: 0.2s ease;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: 'DM Sans', sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
-
-.send-button:hover {
-  background: var(--accent-hover);
+.send-button:hover:not(:disabled) {
+  transform: scale(1.04);
+  box-shadow: 0 6px 20px rgba(249,115,22,0.35);
 }
+.send-button:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ================= UPLOAD BUTTON ================= */
 .upload-button {
   background: #fde68a;
   color: #92400e;
-  padding: 8px 14px;
+  padding: 9px 16px;
   border-radius: 999px;
   font-size: 13px;
   border: none;
   cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
 }
 
-/* ================= CARDS (LIKE YOUR SCREENSHOT) ================= */
+/* ================= CARDS ================= */
 .card {
-  background: var(--bg-card);
-  border-radius: 16px;
+  background: rgba(255,255,255,0.88);
+  border-radius: var(--radius);
   padding: 20px;
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   box-shadow: var(--shadow);
-  transition: 0.2s ease;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  cursor: pointer;
 }
-
 .card:hover {
   transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(249,115,22,0.12);
+  border-color: #F97316;
 }
+
+/* ================= SUGGESTION CHIPS ================= */
+.chip {
+  background: rgba(255,255,255,0.9);
+  border: 1.5px solid rgba(249,115,22,0.18);
+  border-radius: 16px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+.chip:hover {
+  border-color: #F97316;
+  background: #FFF7ED;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(249,115,22,0.12);
+}
+
+/* ================= LOGO BADGE ================= */
+.logo-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #FB923C, #F97316);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 0 rgba(249,115,22,0.3);
+  animation: pulse-soft 2s infinite;
+}
+
+/* ================= TYPING DOTS ================= */
+.dot {
+  width: 8px;
+  height: 8px;
+  background: #FB923C;
+  border-radius: 50%;
+  display: inline-block;
+  animation: dot-bounce 1.2s infinite ease-in-out;
+}
+.dot:nth-child(1) { animation-delay: 0s; }
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
 
 /* ================= HEADINGS ================= */
 h1, h2, h3 {
+  font-family: 'Sora', sans-serif;
   color: var(--text-main);
 }
-
-p {
-  color: var(--text-secondary);
-}
+p { color: var(--text-secondary); }
 
 /* ================= SMALL TEXT ================= */
 .muted {
@@ -162,11 +228,24 @@ p {
 }
 
 /* ================= SCROLLBAR ================= */
-.chat-container::-webkit-scrollbar {
-  width: 6px;
+.chat-container::-webkit-scrollbar { width: 5px; }
+.chat-container::-webkit-scrollbar-thumb {
+  background: rgba(249,115,22,0.2);
+  border-radius: 10px;
 }
 
-.chat-container::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 10px;
+/* ================= ANIMATIONS ================= */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-soft {
+  0%,100% { box-shadow: 0 0 0 0 rgba(249,115,22,0.3); }
+  50%      { box-shadow: 0 0 0 9px rgba(249,115,22,0); }
+}
+
+@keyframes dot-bounce {
+  0%,80%,100% { transform: translateY(0); opacity: 0.4; }
+  40%          { transform: translateY(-6px); opacity: 1; }
 }
