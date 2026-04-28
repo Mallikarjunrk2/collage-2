@@ -6,6 +6,19 @@ export function handleQuery(question) {
   const q = normalize(question);
   const intent = detectIntent(q);
 
+  /* ================= 🔥 COLLEGE INFO (NEW BLOCK) ================= */
+  if (
+    q.includes("hirasugar") ||
+    q.includes("hsit") ||
+    q.includes("college") ||
+    q.includes("nidasoshi")
+  ) {
+    return `${data.college.name}
+Location: ${data.college.location.village}, ${data.college.location.district}
+Established: ${data.college.established_year}
+Affiliation: ${data.college.affiliation}`;
+  }
+
   /* ================= PRINCIPAL ================= */
   if (intent === "principal") {
     const p = data.principal;
@@ -28,10 +41,8 @@ export function handleQuery(question) {
 
   /* ================= ADMISSIONS ================= */
   if (intent === "admissions") {
-    return `
-Exams: ${data.admissions.entrance_exams.join(", ")}
-Eligibility: ${data.admissions.eligibility.qualification}
-`;
+    return `Exams: ${data.admissions.entrance_exams.join(", ")}
+Eligibility: ${data.admissions.eligibility.qualification}`;
   }
 
   /* ================= FACILITIES ================= */
@@ -60,5 +71,6 @@ Recognized by: ${data.research_center.recognized_by}`;
     return data.academic_calendar.key_events.join("\n");
   }
 
-  return "Sorry, I couldn't understand. Try asking about college, faculty, or admissions.";
+  /* ================= FALLBACK ================= */
+  return "not found";
 }
