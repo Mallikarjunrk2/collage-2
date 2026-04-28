@@ -6,71 +6,100 @@ export function handleQuery(question) {
   const q = normalize(question);
   const intent = detectIntent(q);
 
-  /* ================= 🔥 COLLEGE INFO (NEW BLOCK) ================= */
-  if (
-    q.includes("hirasugar") ||
-    q.includes("hsit") ||
-    q.includes("college") ||
-    q.includes("nidasoshi")
-  ) {
-    return `${data.college.name}
-Location: ${data.college.location.village}, ${data.college.location.district}
-Established: ${data.college.established_year}
-Affiliation: ${data.college.affiliation}`;
+  /* ================= 🔥 ALL PEOPLE (DYNAMIC SEARCH) ================= */
+  const allPeople = [
+    ...(data.cse_faculty || []),
+    ...(data.technical_staff || []),
+    ...(data.support_staff || []),
+    ...(data.office_staff || []),
+  ];
+
+  // 🔍 Find by name
+  const person = allPeople.find((p) =>
+    q.includes(p.name.toLowerCase())
+  );
+
+  if (person) {
+    return `${person.name}
+${person.designation || ""}
+${person.email ? "Email: " + person.email : ""}
+${person.phone ? "Phone: " + person.phone : ""}`;
   }
 
-  /* ================= PRINCIPAL ================= */
-  if (intent === "principal") {
-    const p = data.principal;
-    return `${p.name} is the Principal of HSIT. Qualification: ${p.qualification}`;
+  /* ================= 🔥 MANAGEMENT ================= */
+  if (q.includes("president")) {
+    return data.advisory_committee.president;
   }
 
-  /* ================= OFFICE STAFF ================= */
-  if (intent === "office_staff") {
-    return data.office_staff
-      .map((s) => `${s.name} - ${s.designation} (${s.phone})`)
+  if (q.includes("vice president")) {
+    return data.advisory_committee.vice_president;
+  }
+
+  if (q.includes("secretary")) {
+    return data.advisory_committee.secretary;
+  }
+
+  if (q.includes("advisory committee")) {
+    const ac = data.advisory_committee;
+    return `President: ${ac.president}
+Vice President: ${ac.vice_president}
+Secretary: ${ac.secretary}
+Members:
+${ac.members.map(m => m.name).join("\n")}`;
+  }
+
+  if (q.includes("governing council")) {
+    return data.governing_council.members
+      .map(m => `${m.name} - ${m.role || ""}`)
       .join("\n");
   }
 
-  /* ================= FACULTY ================= */
-  if (intent === "faculty") {
+  /* ================= 🔥 FACULTY ================= */
+  if (q.includes("faculty")) {
     return data.cse_faculty
-      .map((f) => `${f.name} - ${f.designation}`)
+      .map(f => `${f.name} - ${f.designation}`)
       .join("\n");
   }
 
-  /* ================= ADMISSIONS ================= */
-  if (intent === "admissions") {
+  /* ================= 🔥 OFFICE ================= */
+  if (q.includes("office staff") || q.includes("office")) {
+    return data.office_staff
+      .map(s => `${s.name} - ${s.designation} (${s.phone})`)
+      .join("\n");
+  }
+
+  /* ================= 🔥 TECH STAFF ================= */
+  if (q.includes("technical staff")) {
+    return data.technical_staff
+      .map(s => `${s.name} - ${s.designation} (${s.phone})`)
+      .join("\n");
+  }
+
+  /* ================= 🔥 SUPPORT STAFF ================= */
+  if (q.includes("support staff")) {
+    return data.support_staff
+      .map(s => `${s.name} - ${s.designation} (${s.phone})`)
+      .join("\n");
+  }
+
+  /* ================= 🔥 PRINCIPAL ================= */
+  if (q.includes("principal")) {
+    return `${data.principal.name}
+${data.principal.designation}
+${data.principal.qualification}`;
+  }
+
+  /* ================= 🔥 DEPARTMENTS ================= */
+  if (q.includes("department")) {
+    return data.departments.map(d => d.name).join("\n");
+  }
+
+  /* ================= 🔥 ADMISSIONS ================= */
+  if (q.includes("admission")) {
     return `Exams: ${data.admissions.entrance_exams.join(", ")}
 Eligibility: ${data.admissions.eligibility.qualification}`;
   }
 
-  /* ================= FACILITIES ================= */
-  if (intent === "facilities") {
-    return data.facilities.join(", ");
-  }
-
-  /* ================= DEPARTMENTS ================= */
-  if (intent === "departments") {
-    return data.departments.map((d) => d.name).join(", ");
-  }
-
-  /* ================= EVENTS ================= */
-  if (intent === "events") {
-    return data.events.join(", ");
-  }
-
-  /* ================= RESEARCH ================= */
-  if (intent === "research") {
-    return `PhD Available: ${data.research_center.phd_available}
-Recognized by: ${data.research_center.recognized_by}`;
-  }
-
-  /* ================= CALENDAR ================= */
-  if (intent === "calendar") {
-    return data.academic_calendar.key_events.join("\n");
-  }
-
-  /* ================= FALLBACK ================= */
+  /* ================= 🔥 FALLBACK ================= */
   return "not found";
 }
