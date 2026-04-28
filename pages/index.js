@@ -71,8 +71,20 @@ export default function Home() {
               Ask about faculty, placements, admissions.
             </div>
           </div>
-          <div className="ml-auto text-green-600 text-sm">
-            Status: Live
+
+          {/* RIGHT SIDE BUTTON */}
+          <div className="ml-auto">
+            <a
+              href="https://hsit-gpt-hub.vercel.app/#features"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <button className="px-4 py-2 rounded-full text-white text-sm font-medium
+                bg-gradient-to-r from-orange-400 to-pink-500
+                hover:opacity-90 transition">
+                How it works?
+              </button>
+            </a>
           </div>
         </div>
 
@@ -94,7 +106,6 @@ export default function Home() {
               >
                 <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
 
-                {/* SOURCE */}
                 {m.source && (
                   <div className="muted mt-1">
                     {m.source === "supabase" && "📘 Database"}
@@ -103,7 +114,6 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* TIME */}
                 <div className="muted mt-1">{m.time}</div>
               </div>
             </div>
