@@ -1,0 +1,322 @@
+{
+  "college": {
+    "name": "Hirasugar Institute of Technology, Nidasoshi",
+    "short_name": "HSIT",
+    "trust": "S.J.P.N Trust",
+    "location": {
+      "village": "Nidasoshi",
+      "taluk": "Hukkeri",
+      "district": "Belagavi",
+      "state": "Karnataka",
+      "pincode": "591236"
+    },
+    "established_year": 1996,
+    "campus_area": "48 Acres",
+    "affiliation": "Visvesvaraya Technological University (VTU), Belagavi",
+    "approval": "AICTE, New Delhi",
+    "ugc": "Recognized under 2(f) & 12(B) of UGC Act 1956",
+    "accreditation": "NAAC A+ Grade",
+    "nba": "Programs Accredited by NBA (CSE & ECE)",
+    "website": "www.hsit.ac.in"
+  },
+
+  "about_college": {
+    "environment": "Rural ambience with lush green campus",
+    "highway_access": "Belagavi-Bijapur Highway",
+    "industries_nearby": [
+      "Manufacturing",
+      "Aerospace",
+      "Glass",
+      "Sugar",
+      "IT Services",
+      "Oil & Natural Gas"
+    ],
+    "alumni_count": "5000+",
+    "focus": [
+      "Engineering",
+      "Management",
+      "Technical",
+      "Research"
+    ],
+    "education_model": [
+      "Holistic education",
+      "Continuous internal evaluation",
+      "Mentoring system",
+      "ICT-based teaching",
+      "Pre-placement training",
+      "GATE/IES preparation"
+    ]
+  },
+
+  "vision": "To be a preferred institution in Engineering Education by achieving excellence in teaching and research and remain a source of pride for its commitment to holistic development of individual and society.",
+
+  "mission": [
+    "Continuously strive for overall development of students",
+    "Educate students with best practices",
+    "Impart problem-solving skills",
+    "Develop leadership qualities",
+    "Promote human values and social commitment"
+  ],
+
+  "core_values": [
+    "Holistic Development",
+    "Student-Centric Learning",
+    "Center of Excellence",
+    "Promoting Prosperity",
+    "Environmental Consciousness"
+  ],
+
+  "management": {
+    "president": "Shri Shivalingeshwar Mahaswamiji",
+    "trust": "S.J.P.N Trust"
+  },
+
+  "principal": {
+    "name": "Dr. S.C. Kamate",
+    "qualification": "M.Tech., Ph.D.",
+    "designation": "Principal",
+    "message": "Dear Aspirants, I extend a very warm welcome to Hirasugar Institute of Technology, Nidasoshi, Dist: Belgaum, Karnataka. The Institute is located in the rural ambience with a lush green campus spread over on 48 Acres, adjacent to Belgaum-Bijapur Highway. The campus is surrounded by industrial hubs in Manufacturing, Aerospace, Glass, Sugar, IT services and Oil & Natural gas etc., with infinite employment potential. Since inception in 1996, it has produced more than 5000 Alumni serving in Engineering, Management, Technical and Research fields. The success is due to holistic education approach, alumni tracking, continuous evaluation, mentoring, ICT tools, pre-placement training, and GATE/IES preparation. HSIT is a preferred choice for engineering career."
+  },
+
+  "advisory_committee": {
+    "president": "Shri Shivalingeshwar Mahaswamiji",
+    "vice_president": "Shri G M Patil",
+    "secretary": "Shri S B Bellad",
+    "members": [
+      { "name": "Shri B L Khot", "profession": "Agriculturist & Businessman" },
+      { "name": "Shri R M Patil", "profession": "Politician" },
+      { "name": "Shri Nijalingeshwar Mahaswamiji" },
+      { "name": "Shri Prithvi R Katti", "profession": "Entrepreneur" },
+      { "name": "Shri K G Gurav", "profession": "HR Trainer" }
+    ]
+  },
+
+  "governing_council": {
+    "president": "Shri Shivalingeshwar Mahaswamiji",
+    "members": [
+      { "name": "Shri G M Patil", "role": "Member" },
+      { "name": "Shri S B Bellad", "role": "Member" },
+      { "name": "Dr. B R Patagundi", "role": "VTU Nominee" },
+      { "name": "Dr. Satish Annigeri", "role": "Educationist" },
+      { "name": "Mr. Rajiv B Nerlagunte", "role": "Industrialist" },
+      { "name": "Dr. K B Manwade", "role": "Professor CSE" },
+      { "name": "Dr. S S Ittannavar", "role": "Associate Professor ECE" },
+      { "name": "AICTE Nominee" },
+      { "name": "Government Nominee" },
+      { "name": "Dr. S C Kamate", "role": "Member Secretary" }
+    ]
+  },
+
+  "office_staff": [
+    { "name": "Shri S R Koteppagol", "designation": "Office Superintendent", "phone": "+919480849333" },
+    { "name": "Shri S S Dhange", "designation": "Accountant", "phone": "+917259666340" },
+    { "name": "Shri S B Chougala", "designation": "FDA", "phone": "+919449535523" },
+    { "name": "Shri K B Uramanatti", "designation": "FDA", "phone": "+919886850535" },
+    { "name": "Shri T B Patil", "designation": "FDA", "phone": "+919739108962" },
+    { "name": "Shri V K Badakar", "designation": "Typist", "phone": "+919739392418" },
+    { "name": "Shri M B Patil", "designation": "FDA", "phone": "+919972470924" },
+    { "name": "Shri S M Kamate", "designation": "SDA", "phone": "+919538193716" },
+    { "name": "Miss Anita Kamanuri", "designation": "Girls Hostel Superintendent", "phone": "+919164083676" },
+    { "name": "Shri V T Yeduri", "designation": "Peon", "phone": "+917829165801" },
+    { "name": "Shri S B Khot", "designation": "Helper", "phone": "+919916874660" },
+    { "name": "Shri G S Tolake", "designation": "Peon", "phone": "+917406967753" }
+  ]
+
+
+  "courses": {
+    "undergraduate": {
+      "degree": "B.E",
+      "duration": "4 Years",
+      "lateral_entry": true
+    }
+  },
+
+  "departments": [
+    { "name": "Computer Science & Engineering", "established": 1996, "intake": 120 },
+    { "name": "Electronics & Communication Engineering", "established": 1996, "intake": 120 },
+    { "name": "Electrical & Electronics Engineering", "established": 1996, "intake": 60 },
+    { "name": "Mechanical Engineering", "established": 1996, "intake": 60 },
+    { "name": "Civil Engineering", "established": 2020, "intake": 60 }
+  ],
+
+  "admissions": {
+    "entrance_exams": ["KCET", "COMEDK"],
+    "quota_distribution": {
+      "government": "45%",
+      "comedk": "30%",
+      "management": "25%"
+    },
+    "eligibility": {
+      "qualification": "PUC / 12th",
+      "subjects": ["Physics", "Mathematics", "English"],
+      "minimum_percentage": {
+        "general": "45%",
+        "sc_st": "40%"
+      }
+    }
+  },
+
+  "facilities": [
+    "Digital Classrooms",
+    "Computer Labs",
+    "Internet Facility",
+    "Library",
+    "Hostels (Boys & Girls)",
+    "Sports Facilities",
+    "Gymnasium",
+    "Yoga Center",
+    "Transportation",
+    "Canteen",
+    "Dispensary"
+  ],
+
+  "research_center": {
+    "phd_available": true,
+    "recognized_by": "VTU",
+    "departments": [
+      "Mechanical Engineering",
+      "Electronics & Communication",
+      "Electrical Engineering",
+      "Engineering Chemistry",
+      "Computer Science & Engineering"
+    ],
+    "funding": "₹80 Lakhs for infrastructure"
+  },
+
+  "academic_calendar": {
+    "year": "2025-26",
+    "key_events": [
+      "Semester start (Aug 2025)",
+      "IA Tests (Aug, Oct, Nov)",
+      "Last working day Dec 2025",
+      "VTU Exams Dec–Jan",
+      "Even semester starts Jan 2026",
+      "National Science Day Feb 2026",
+      "Internship April 2026",
+      "HSIT Quest April 2026",
+      "Graduation Day May 2026",
+      "Semester end June 2026"
+    ]
+  },
+
+  "events": [
+    "HSIT QUEST (Technical Fest)",
+    "Graduation Day",
+    "Blood Donation Camp",
+    "Project Exhibition",
+    "Sports Events",
+    "Alumni Activities"
+  ],
+
+  "cse_faculty": [
+    {
+      "name": "Dr K B Manwade",
+      "designation": "Professor",
+      "qualification": "B.E, M.Tech, Ph.D",
+      "joining_date": "16-03-2020",
+      "experience": "20 years",
+      "email": "kbmanwade.cse@hsit.ac.in",
+      "phone": "+918412968254"
+    },
+    {
+      "name": "Dr S V Manjaragi",
+      "designation": "Associate Professor & HOD",
+      "qualification": "B.E, M.Tech, Ph.D",
+      "joining_date": "01-09-2004",
+      "experience": "20 years",
+      "email": "svmanjaragi.cse@hsit.ac.in",
+      "phone": "+919986658309, +918088856979"
+    },
+    {
+      "name": "Mrs A A Daptardar",
+      "designation": "Assistant Professor",
+      "joining_date": "08-05-2007",
+      "experience": "17 years",
+      "email": "arunadaptardar.cse@hsit.ac.in",
+      "phone": "+919620851002"
+    },
+    {
+      "name": "Ms Sujata I Mane",
+      "designation": "Assistant Professor",
+      "joining_date": "01-10-2022",
+      "experience": "8 years",
+      "email": "sujatamane.cse@hsit.ac.in",
+      "phone": "+917406825910"
+    },
+    {
+      "name": "Mr Mallikarjun G Ganachari",
+      "designation": "Assistant Professor",
+      "joining_date": "01-09-2023",
+      "experience": "14 years",
+      "email": "mgganachari.cse@hsit.ac.in",
+      "phone": "+918904879471"
+    },
+    {
+      "name": "Mrs S B Patil",
+      "designation": "Assistant Professor",
+      "joining_date": "25-10-2023",
+      "experience": "2 years",
+      "email": "sapna.cse@hsit.ac.in",
+      "phone": "+919740875627"
+    },
+    {
+      "name": "Mrs Shruti Kumbar",
+      "designation": "Assistant Professor",
+      "joining_date": "05-04-2024",
+      "experience": "4 years",
+      "email": "shrutik.cse@hsit.ac.in",
+      "phone": "+919483603451"
+    },
+    {
+      "name": "Mr G Y Kamble",
+      "designation": "Assistant Professor",
+      "joining_date": "10-02-2025",
+      "experience": "26 years",
+      "email": "gykamble.cse@hsit.ac.in",
+      "phone": "+917338235749"
+    },
+    {
+      "name": "Mr Manojkumar A Chitale",
+      "designation": "Assistant Professor",
+      "joining_date": "01-07-2025",
+      "experience": "8.3 years",
+      "email": "manojchitale.cse@hsit.ac.in",
+      "phone": "+919480787474"
+    },
+    {
+      "name": "Prof Sunita Karabasannavar",
+      "designation": "Assistant Professor",
+      "joining_date": "03-07-2025",
+      "experience": "1.6 years",
+      "email": "sunitak.cse@hsit.ac.in",
+      "phone": "+918970057721"
+    },
+    {
+      "name": "Prof S H Kumbar",
+      "designation": "Assistant Professor",
+      "joining_date": "14-08-2025",
+      "experience": "8.3 years",
+      "email": "umahk.cse@hsit.ac.in",
+      "phone": "+918095849798"
+    }
+  ],
+
+  "technical_staff": [
+    { "name": "Dr A K Talawar", "designation": "System Analyst", "phone": "+919448692471" },
+    { "name": "Shweta B Vairagi", "designation": "Programmer", "phone": "+919632009355" },
+    { "name": "A K Badakar", "designation": "Assistant Programmer", "phone": "+919980283608" },
+    { "name": "A R Bhiste", "designation": "Instructor", "phone": "+919538170337" },
+    { "name": "Supriya G Hugar", "designation": "Instructor", "phone": "+919741373426" },
+    { "name": "Suyash V Badi", "designation": "Instructor", "phone": "+917483833507" },
+    { "name": "A B Bennoli", "designation": "Mechanic", "phone": "+917829847451" }
+  ],
+
+  "support_staff": [
+    { "name": "N M Wani", "designation": "Peon", "phone": "+919620163714" },
+    { "name": "M S Kadalagi", "designation": "Helper", "phone": "+919482001930" },
+    { "name": "A S Kankanwadi", "designation": "Helper", "phone": "+919481740075" }
+  ]
+}
+
+
+
