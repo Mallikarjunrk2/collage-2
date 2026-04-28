@@ -109,12 +109,13 @@ export default async function handler(req, res) {
 
     // STRICT CHECK (important fix)
     if (
-      localAnswer &&
-      typeof localAnswer === "string" &&
-      localAnswer.trim().length > 5 &&
-      !localAnswer.toLowerCase().includes("not found") &&
-      !localAnswer.toLowerCase().includes("no data")
-    ) {
+  localAnswer &&
+  typeof localAnswer === "string" &&
+  localAnswer.trim().length > 5 &&
+  !localAnswer.toLowerCase().includes("not found") &&
+  !localAnswer.toLowerCase().includes("no data") &&
+  !localAnswer.toLowerCase().includes("sorry, i couldn't understand")
+) {
       return res.json({
         answer: localAnswer,
         source: "local-data",
