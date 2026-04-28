@@ -15,7 +15,7 @@ function getScore(query, text) {
     }
   });
 
-  return match / qWords.length; // 0 → 1
+  return match / qWords.length;
 }
 
 /* ================= 🔥 BEST MATCH FINDER ================= */
@@ -36,6 +36,34 @@ function findBestMatch(list, query, key = "name") {
   return { best, bestScore };
 }
 
+/* ================= 🔥 NEW: ROLE DETECTION ================= */
+function detectRole(q) {
+  if (q.includes("hod") || q.includes("head of department")) return "hod";
+  if (q.includes("principal")) return "principal";
+  if (q.includes("assistant")) return "assistant";
+  if (q.includes("associate")) return "associate";
+  if (q.includes("professor")) return "professor";
+
+  return null;
+}
+
+/* ================= 🔥 NEW: ROLE FILTER ================= */
+function filterByRole(list, role) {
+  if (!role) return list;
+
+  return list.filter((p) => {
+    const d = (p.designation || "").toLowerCase();
+
+    if (role === "hod") return d.includes("hod");
+    if (role === "principal") return d.includes("principal");
+    if (role === "assistant") return d.includes("assistant");
+    if (role === "associate") return d.includes("associate");
+    if (role === "professor") return d.includes("professor");
+
+    return false;
+  });
+}
+
 export function handleQuery(question) {
   const q = normalize(question);
   const intent = detectIntent(q);
@@ -48,8 +76,15 @@ export function handleQuery(question) {
     ...(data.office_staff || []),
   ];
 
-  /* ================= 🔥 SCORE-BASED PERSON SEARCH ================= */
-  const { best: person, bestScore } = findBestMatch(allPeople, q);
+  /* ================= 🔥 NEW: APPLY ROLE FILTER FIRST ================= */
+  const role = detectRole(q);
+  const filteredPeople = filterByRole(allPeople, role);
+
+  /* ================= 🔥 SCORE MATCH ================= */
+  const { best: person, bestScore } = findBestMatch(
+    filteredPeople.length ? filteredPeople : allPeople,
+    q
+  );
 
   if (person && bestScore > 0.5) {
     return `${person.name}
@@ -114,7 +149,7 @@ ${ac.members.map((m) => m.name).join("\n")}`;
       .join("\n");
   }
 
-  /* ================= 🔥 PRINCIPAL ================= */
+  /* ================= 🔥 PRINCIPAL (SAFE KEEP) ================= */
   if (q.includes("principal")) {
     return `${data.principal.name}
 ${data.principal.designation}
