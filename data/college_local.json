@@ -124,12 +124,12 @@
 
 
   "courses": {
-    "undergraduate": {
-      "degree": "B.E",
-      "duration": "4 Years",
-      "lateral_entry": true
-    }
-  },
+  "undergraduate": {
+    "degree": "B.E",
+    "duration": "4 Years",
+    "lateral_entry": true
+  }
+},
 
   "departments": [
     { "name": "Computer Science & Engineering", "established": 1996, "intake": 120 },
