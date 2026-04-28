@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { handleQuery } from "../../utils/searchEngine";
 
 /* ===================== ENV ===================== */
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -29,7 +30,7 @@ async function callLLM(question) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000); // 8s max
+    const timeout = setTimeout(() => controller.abort(), 8000);
 
     const resp = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -41,12 +42,12 @@ async function callLLM(question) {
         },
         signal: controller.signal,
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant", // ⚡ FAST MODEL
+          model: "llama-3.1-8b-instant",
           messages: [
             {
               role: "system",
               content:
-                "You are CollegeGPT for HSIT. Give short, clear answers. Max 2-3 lines.",
+                "You are CollegeGPT for HSIT. Answer short (2–3 lines).",
             },
             {
               role: "user",
@@ -55,7 +56,6 @@ async function callLLM(question) {
           ],
           max_tokens: 300,
           temperature: 0.6,
-          top_p: 1,
         }),
       }
     );
@@ -70,8 +70,7 @@ async function callLLM(question) {
 
     return {
       answer:
-        json?.choices?.[0]?.message?.content ||
-        "No response.",
+        json?.choices?.[0]?.message?.content || "No response.",
       source: "llm",
     };
   } catch (err) {
@@ -94,7 +93,6 @@ export default async function handler(req, res) {
   }
 
   const q = question.trim();
-  const tokens = tokenize(q);
 
   /* ===================== GREETING ===================== */
   if (["hi", "hello", "hey"].includes(q.toLowerCase())) {
@@ -104,11 +102,28 @@ export default async function handler(req, res) {
     });
   }
 
-  /* ===================== SUPABASE SEARCH ===================== */
+  /* ===================== 1. LOCAL JSON (FASTEST) ===================== */
+  try {
+    const localAnswer = handleQuery(q);
+
+    if (
+      localAnswer &&
+      !localAnswer.toLowerCase().includes("couldn't understand")
+    ) {
+      return res.json({
+        answer: localAnswer,
+        source: "local-data",
+      });
+    }
+  } catch (e) {}
+
+  /* ===================== 2. SUPABASE ===================== */
   if (SUPABASE_URL && SUPABASE_KEY) {
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     try {
+      const tokens = tokenize(q);
+
       const { data } = await supabase
         .from("faculty_list")
         .select("*")
@@ -132,7 +147,7 @@ Email: ${match.email}`,
     } catch (e) {}
   }
 
-  /* ===================== LLM FALLBACK ===================== */
+  /* ===================== 3. LLM FALLBACK ===================== */
   const llm = await callLLM(q);
   return res.json(llm);
 }
