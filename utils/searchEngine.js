@@ -2,11 +2,45 @@ import data from "../data/college_local.json";
 import { normalize } from "./normalize.js";
 import { detectIntent } from "./intent.js";
 
+/* ================= 🔥 SCORE FUNCTION ================= */
+function getScore(query, text) {
+  const qWords = query.split(" ");
+  const tWords = text.split(" ");
+
+  let match = 0;
+
+  qWords.forEach((q) => {
+    if (tWords.some((t) => t.includes(q))) {
+      match++;
+    }
+  });
+
+  return match / qWords.length; // 0 → 1
+}
+
+/* ================= 🔥 BEST MATCH FINDER ================= */
+function findBestMatch(list, query, key = "name") {
+  let best = null;
+  let bestScore = 0;
+
+  list.forEach((item) => {
+    const text = normalize(item[key] || "");
+    const score = getScore(query, text);
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = item;
+    }
+  });
+
+  return { best, bestScore };
+}
+
 export function handleQuery(question) {
   const q = normalize(question);
   const intent = detectIntent(q);
 
-  /* ================= 🔥 ALL PEOPLE (DYNAMIC SEARCH) ================= */
+  /* ================= 🔥 ALL PEOPLE ================= */
   const allPeople = [
     ...(data.cse_faculty || []),
     ...(data.technical_staff || []),
@@ -14,12 +48,10 @@ export function handleQuery(question) {
     ...(data.office_staff || []),
   ];
 
-  // 🔍 Find by name
-  const person = allPeople.find((p) =>
-    q.includes(p.name.toLowerCase())
-  );
+  /* ================= 🔥 SCORE-BASED PERSON SEARCH ================= */
+  const { best: person, bestScore } = findBestMatch(allPeople, q);
 
-  if (person) {
+  if (person && bestScore > 0.5) {
     return `${person.name}
 ${person.designation || ""}
 ${person.email ? "Email: " + person.email : ""}
@@ -45,40 +77,40 @@ ${person.phone ? "Phone: " + person.phone : ""}`;
 Vice President: ${ac.vice_president}
 Secretary: ${ac.secretary}
 Members:
-${ac.members.map(m => m.name).join("\n")}`;
+${ac.members.map((m) => m.name).join("\n")}`;
   }
 
   if (q.includes("governing council")) {
     return data.governing_council.members
-      .map(m => `${m.name} - ${m.role || ""}`)
+      .map((m) => `${m.name} - ${m.role || ""}`)
       .join("\n");
   }
 
   /* ================= 🔥 FACULTY ================= */
   if (q.includes("faculty")) {
     return data.cse_faculty
-      .map(f => `${f.name} - ${f.designation}`)
+      .map((f) => `${f.name} - ${f.designation}`)
       .join("\n");
   }
 
   /* ================= 🔥 OFFICE ================= */
   if (q.includes("office staff") || q.includes("office")) {
     return data.office_staff
-      .map(s => `${s.name} - ${s.designation} (${s.phone})`)
+      .map((s) => `${s.name} - ${s.designation} (${s.phone})`)
       .join("\n");
   }
 
   /* ================= 🔥 TECH STAFF ================= */
-  if (q.includes("technical staff")) {
+  if (q.includes("technical staff") || q.includes("tech staff")) {
     return data.technical_staff
-      .map(s => `${s.name} - ${s.designation} (${s.phone})`)
+      .map((s) => `${s.name} - ${s.designation} (${s.phone})`)
       .join("\n");
   }
 
   /* ================= 🔥 SUPPORT STAFF ================= */
   if (q.includes("support staff")) {
     return data.support_staff
-      .map(s => `${s.name} - ${s.designation} (${s.phone})`)
+      .map((s) => `${s.name} - ${s.designation} (${s.phone})`)
       .join("\n");
   }
 
@@ -91,7 +123,7 @@ ${data.principal.qualification}`;
 
   /* ================= 🔥 DEPARTMENTS ================= */
   if (q.includes("department")) {
-    return data.departments.map(d => d.name).join("\n");
+    return data.departments.map((d) => d.name).join("\n");
   }
 
   /* ================= 🔥 ADMISSIONS ================= */
@@ -101,5 +133,5 @@ Eligibility: ${data.admissions.eligibility.qualification}`;
   }
 
   /* ================= 🔥 FALLBACK ================= */
-  return "not found";
+  return "Sorry, I couldn't understand. Try asking about college, faculty, or admissions.";
 }
