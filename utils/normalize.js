@@ -1,7 +1,12 @@
+import { aliases } from "./aliases";
+
 export function normalize(text = "") {
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/[^\w\s]/g, " ")
+    .split(" ")
+    .map((word) => aliases[word] || word)
+    .join(" ")
     .replace(/\s+/g, " ")
     .trim();
 }
