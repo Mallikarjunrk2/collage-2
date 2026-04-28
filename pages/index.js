@@ -1,4 +1,3 @@
-// pages/index.js
 import { useState, useEffect, useRef } from "react";
 
 export default function Home() {
@@ -11,9 +10,9 @@ export default function Home() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-
   async function send() {
     if (!q.trim()) return;
+
     const userMsg = {
       id: Date.now(),
       role: "user",
@@ -46,216 +45,99 @@ export default function Home() {
     } catch (err) {
       setMessages((m) => [
         ...m,
-        { id: Date.now(), role: "bot", text: "Error contacting API." },
+        {
+          id: Date.now(),
+          role: "bot",
+          text: "Error contacting API.",
+          time: new Date().toLocaleTimeString(),
+        },
       ]);
     }
 
     setLoading(false);
   }
 
-  
-  async function handleImageUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setLoading(true);
-
-   
-    const toDataURL = (file, maxWidth = 1200, quality = 0.75) =>
-      new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("FileReader failed"));
-        reader.onload = () => {
-          const img = new Image();
-          img.onload = () => {
-            const scale = Math.min(1, maxWidth / img.width);
-            const w = Math.round(img.width * scale);
-            const h = Math.round(img.height * scale);
-            const canvas = document.createElement("canvas");
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0, w, h);
-            try {
-              const dataUrl = canvas.toDataURL("image/jpeg", quality);
-              resolve(dataUrl);
-            } catch (err) {
-              reject(err);
-            }
-          };
-          img.onerror = () => reject(new Error("Image load failed"));
-          img.src = reader.result;
-        };
-        reader.readAsDataURL(file);
-      });
-
-    try {
-      const dataUrl = await toDataURL(file);
-      
-      const userImageMsg = {
-        id: Date.now(),
-        role: "user",
-        text: null,
-        image: dataUrl,
-        filename: file.name || "photo.jpg",
-        time: new Date().toLocaleTimeString(),
-      };
-      setMessages((m) => [...m, userImageMsg]);
-
-      const payload = { image: dataUrl, filename: file.name || "photo.jpg" };
-      let resp = await fetch("/api/describeImage_alt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }).catch(() => null);
-
-  
-      if (!resp || !resp.ok) {
-        resp = await fetch("/api/describeImage", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }).catch(() => null);
-      }
-
-      if (resp && resp.ok) {
-        const j = await resp.json();
-        const botMsg = {
-          id: Date.now() + 1,
-          role: "bot",
-          text: j.answer || j.note || j.error || "Image described.",
-          source: j.source || "vision",
-          time: new Date().toLocaleTimeString(),
-        };
-        setMessages((m) => [...m, botMsg]);
-      } else {
-        setMessages((m) => [
-          ...m,
-          {
-            id: Date.now() + 1,
-            role: "bot",
-            text: "⚠️ Image description failed",
-            source: "vision-error",
-            time: new Date().toLocaleTimeString(),
-          },
-        ]);
-      }
-    } catch (err) {
-      console.error("handleImageUpload error", err);
-      setMessages((m) => [
-        ...m,
-        {
-          id: Date.now(),
-          role: "bot",
-          text: "⚠️ Image description failed",
-          source: "vision-error",
-          time: new Date().toLocaleTimeString(),
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
-    <div className="min-h-screen bg-[#0b1220] text-white flex justify-center p-6">
+    <div className="container min-h-screen flex justify-center p-6">
       <div className="w-full max-w-3xl flex flex-col">
 
-       
-        <div className="flex items-center gap-4 mb-6 pb-4 border-b border-white/10">
+        {/* HEADER */}
+        <div className="flex items-center gap-4 mb-6 pb-4 border-b">
           <div>
-            <div className="text-xl font-bold">🎓 CollegeGPT — HSIT</div>
-            <div className="text-sm text-gray-400">
-              Ask about faculty, placements, admissions or upload an image.
+            <div className="text-xl font-bold">
+              🎓 CollegeGPT — HSIT
+            </div>
+            <div className="text-sm muted">
+              Ask about faculty, placements, admissions.
             </div>
           </div>
-          <div className="ml-auto text-green-400 text-sm">Status: Live</div>
+          <div className="ml-auto text-green-600 text-sm">
+            Status: Live
+          </div>
         </div>
 
-       
-        <div className="flex-1 overflow-auto bg-[#111827] p-4 rounded-xl border border-white/10 min-h-[60vh]">
+        {/* CHAT BOX */}
+        <div className="chat-container flex-1">
           {messages.map((m) => (
             <div
               key={m.id}
-              className={`mb-5 flex ${
+              className={`flex mb-4 ${
                 m.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
               <div
-                className={`max-w-xl p-3 rounded-xl ${
+                className={
                   m.role === "user"
-                    ? "bg-purple-700"
-                    : "bg-gray-800 border border-white/10"
-                }`}
+                    ? "message user-message"
+                    : "message bot-message"
+                }
               >
-             
-                {m.image ? (
-                  <div className="mb-2">
-                    <img
-                      src={m.image}
-                      alt={m.filename || "uploaded image"}
-                      style={{ maxWidth: "520px", width: "100%", borderRadius: 12, display: "block" }}
-                    />
-                    {m.filename ? <div className="text-xs text-gray-400 mt-1">{m.filename}</div> : null}
-                  </div>
-                ) : null}
+                <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
 
-                {m.text ? <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div> : null}
-
-                {/* Source label */}
+                {/* SOURCE */}
                 {m.source && (
-                  <div className="mt-1 text-xs text-gray-400">
+                  <div className="muted mt-1">
                     {m.source === "supabase" && "📘 Database"}
                     {m.source === "llm" && "🤖 LLM"}
-                    {m.source === "vision" && "🖼 Vision"}
-                    {m.source === "vision-error" && "⚠️ Vision Error"}
-                    {m.source === "gemini-vision" && "🖼 Gemini"}
+                    {m.source === "local-data" && "📂 Local"}
                   </div>
                 )}
 
-                <div className="text-xs text-gray-500 mt-1">{m.time}</div>
+                {/* TIME */}
+                <div className="muted mt-1">{m.time}</div>
               </div>
             </div>
           ))}
+
           <div ref={endRef}></div>
         </div>
 
-    
+        {/* INPUT */}
         <div className="mt-4">
-          <div className="flex items-center gap-3 bg-[#0b1220] p-3 rounded-full border border-white/6">
-            {/* Upload button (left) */}
-            <label className="cursor-pointer bg-yellow-600 px-4 py-2 rounded-full text-sm">
-              📷 Upload
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageUpload}
-              />
-            </label>
-
-          
+          <div className="input-container">
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="Summarize meeting notes or upload a screenshot..."
-              className="flex-1 p-3 rounded-full bg-gray-900 border border-white/10 outline-none"
+              placeholder="Ask anything about your college..."
+              className="input-box"
             />
 
-         
             <button
               onClick={send}
               disabled={loading}
-              className="px-5 py-2 rounded-full bg-purple-600 disabled:opacity-40"
+              className="send-button"
             >
-              {loading ? "…" : "Send"}
+              {loading ? "..." : "Send"}
             </button>
           </div>
         </div>
 
-        <div className="mt-6 text-center text-gray-500 text-xs pb-4 opacity-80">
+        {/* FOOTER */}
+        <div className="mt-6 text-center muted pb-4">
           ⚠️ This AI may make mistakes. Still learning from HSIT students ❤️
         </div>
+
       </div>
     </div>
   );
