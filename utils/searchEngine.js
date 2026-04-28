@@ -1,4 +1,4 @@
-import data from "../data/college_master.json";
+import data from "../data/college_local.json";
 import { normalize } from "./normalize.js";
 import { detectIntent } from "./intent.js";
 
