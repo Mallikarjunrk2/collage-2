@@ -107,23 +107,22 @@
     ]
   },
 
-  "office_staff": [
-    { "name": "Shri S R Koteppagol", "designation": "Office Superintendent", "phone": "+919480849333" },
-    { "name": "Shri S S Dhange", "designation": "Accountant", "phone": "+917259666340" },
-    { "name": "Shri S B Chougala", "designation": "FDA", "phone": "+919449535523" },
-    { "name": "Shri K B Uramanatti", "designation": "FDA", "phone": "+919886850535" },
-    { "name": "Shri T B Patil", "designation": "FDA", "phone": "+919739108962" },
-    { "name": "Shri V K Badakar", "designation": "Typist", "phone": "+919739392418" },
-    { "name": "Shri M B Patil", "designation": "FDA", "phone": "+919972470924" },
-    { "name": "Shri S M Kamate", "designation": "SDA", "phone": "+919538193716" },
-    { "name": "Miss Anita Kamanuri", "designation": "Girls Hostel Superintendent", "phone": "+919164083676" },
-    { "name": "Shri V T Yeduri", "designation": "Peon", "phone": "+917829165801" },
-    { "name": "Shri S B Khot", "designation": "Helper", "phone": "+919916874660" },
-    { "name": "Shri G S Tolake", "designation": "Peon", "phone": "+917406967753" }
-  ]
+ "office_staff": [
+  { "name": "Shri S R Koteppagol", "designation": "Office Superintendent", "phone": "+919480849333" },
+  { "name": "Shri S S Dhange", "designation": "Accountant", "phone": "+917259666340" },
+  { "name": "Shri S B Chougala", "designation": "FDA", "phone": "+919449535523" },
+  { "name": "Shri K B Uramanatti", "designation": "FDA", "phone": "+919886850535" },
+  { "name": "Shri T B Patil", "designation": "FDA", "phone": "+919739108962" },
+  { "name": "Shri V K Badakar", "designation": "Typist", "phone": "+919739392418" },
+  { "name": "Shri M B Patil", "designation": "FDA", "phone": "+919972470924" },
+  { "name": "Shri S M Kamate", "designation": "SDA", "phone": "+919538193716" },
+  { "name": "Miss Anita Kamanuri", "designation": "Girls Hostel Superintendent", "phone": "+919164083676" },
+  { "name": "Shri V T Yeduri", "designation": "Peon", "phone": "+917829165801" },
+  { "name": "Shri S B Khot", "designation": "Helper", "phone": "+919916874660" },
+  { "name": "Shri G S Tolake", "designation": "Peon", "phone": "+917406967753" }
+],
 
-
-  "courses": {
+"courses": {
   "undergraduate": {
     "degree": "B.E",
     "duration": "4 Years",
